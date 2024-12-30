@@ -9,14 +9,14 @@ product_bp = Blueprint('products', __name__)
 def get_all_products():
     """
     Fetch all products from the database and return them as JSON.
-    Returns:
-        - 200: List of products.
-        - 500: Server error.
     """
     try:
         products = Product.get_all_products()
+        # Add debug logging
+        print(f"Fetched products: {[product.to_dict() for product in products]}")
         return jsonify([product.to_dict() for product in products]), 200
     except Exception as e:
+        print(f"Error fetching products: {str(e)}")  # Debug log
         return jsonify({"message": "Failed to fetch products", "error": str(e)}), 500
 
 # Route to get a specific product by ID

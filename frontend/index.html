@@ -8,6 +8,7 @@
     <meta http-equiv="Expires" content="0">
     <title>ShopEasy - Home</title>
     <link rel="stylesheet" href="/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 </head>
 <body>
     <header>
@@ -23,6 +24,44 @@
             </nav>
         </div>
     </header>
+    <!-- Add this right after header -->
+<div class="welcome-banner">
+    <div class="welcome-text">
+        Welcome to ShopEasy! 🌟 Free shipping on orders over $50! | New arrivals every week! | Special discounts for members! | 24/7 customer support | Easy returns & exchanges | Shop now and save big! | Holiday deals coming soon!
+    </div>
+</div>
+    <!-- New Carousel Section -->
+    <section class="image-carousel">
+        <div class="carousel-container">
+            <div class="carousel-track" id="carouselTrack">
+                <div class="carousel-slide">
+                    <img src="/api/placeholder/800/400" alt="Electronics Sale" />
+                    <div class="slide-content">
+                        <h3>Electronics Sale</h3>
+                        <p>Up to 40% off on latest gadgets</p>
+                    </div>
+                </div>
+                <div class="carousel-slide">
+                    <img src="/api/placeholder/800/400" alt="New Arrivals" />
+                    <div class="slide-content">
+                        <h3>New Arrivals</h3>
+                        <p>Check out our latest products</p>
+                    </div>
+                </div>
+                <div class="carousel-slide">
+                    <img src="/api/placeholder/800/400" alt="Special Offers" />
+                    <div class="slide-content">
+                        <h3>Special Offers</h3>
+                        <p>Limited time deals on popular items</p>
+                    </div>
+                </div>
+            </div>
+            <button class="carousel-button prev" onclick="moveCarousel(-1)">❮</button>
+            <button class="carousel-button next" onclick="moveCarousel(1)">❯</button>
+            <div class="carousel-dots" id="carouselDots"></div>
+        </div>
+    </section>
+
     <main>
         <section class="hero">
             <h2>Discover Amazing Products</h2>
@@ -38,8 +77,44 @@
     <footer>
         <p>&copy; 2024 ShopEasy. All rights reserved.</p>
     </footer>
+
     <script>
-        // Common authentication functions
+        // Carousel functionality
+        let currentSlide = 0;
+        const slides = document.querySelectorAll('.carousel-slide');
+
+        function setupCarousel() {
+            const dotsContainer = document.getElementById('carouselDots');
+            
+            slides.forEach((_, index) => {
+                const dot = document.createElement('div');
+                dot.className = `dot ${index === 0 ? 'active' : ''}`;
+                dot.onclick = () => goToSlide(index);
+                dotsContainer.appendChild(dot);
+            });
+
+            setInterval(() => moveCarousel(1), 5000);
+        }
+
+        function moveCarousel(direction) {
+            const track = document.getElementById('carouselTrack');
+            const dots = document.querySelectorAll('.dot');
+            
+            currentSlide = (currentSlide + direction + slides.length) % slides.length;
+            
+            track.style.transform = `translateX(-${currentSlide * 100}%)`;
+            
+            dots.forEach((dot, index) => {
+                dot.classList.toggle('active', index === currentSlide);
+            });
+        }
+
+        function goToSlide(index) {
+            const difference = index - currentSlide;
+            moveCarousel(difference);
+        }
+
+        // Existing authentication functions
         async function updateUserSection() {
             try {
                 const response = await fetch('/api/auth/status', {
@@ -55,15 +130,14 @@
                         <span class="username">Welcome, ${username}</span>
                         <a href="#" onclick="logout()" class="logout-btn">Logout</a>
                     `;
-                    return true;
                 } else {
                     sessionStorage.clear();
                     userSection.innerHTML = `
                         <a href="/login.html">Login</a>
                         <a href="/signup.html">Sign Up</a>
                     `;
-                    return false;
                 }
+                return data.authenticated;
             } catch (error) {
                 console.error('Error updating user section:', error);
                 sessionStorage.clear();
@@ -74,6 +148,7 @@
                 return false;
             }
         }
+
 
         async function logout() {
             try {
@@ -109,131 +184,77 @@
             }
         }
 
-        // Product-related functions
-        // Product-related functions
+
+        // Updated loadFeaturedProducts function
         async function loadFeaturedProducts() {
-            try {
-                const response = await fetch('/api/products', {
-                    credentials: 'include',
-                    headers: {
-                        'Accept': 'application/json'
-                    }
-                });
-
-                const data = await response.json();
-                console.log('Products data:', data); // Debug log
-
-                const grid = document.getElementById('productGrid');
-                grid.innerHTML = '';
-
-                if (!Array.isArray(data) || data.length === 0) {
-                    grid.innerHTML = '<p class="no-products">No featured products available right now.</p>';
-                    return;
-                }
-
-                const isAuthenticated = await checkAuthentication();
-                // Show only first 3 products as featured
-                const featuredProducts = data.slice(0, 3);
-                
-                featuredProducts.forEach(product => {
-                    console.log('Processing product:', product); // Debug log
-                    const div = document.createElement('div');
-                    div.className = 'product-item';
-                    div.innerHTML = `
-                        <h3>${product.name}</h3>
-                        <p>$${parseFloat(product.price).toFixed(2)}</p>
-                        <button onclick="handleAddToCart(${product.product_id})" class="add-to-cart-btn">
-                            ${isAuthenticated ? 'Add to Cart' : 'Login to Buy'}
-                        </button>
-                    `;
-                    grid.appendChild(div);
-                });
-            } catch (error) {
-                console.error('Error fetching products:', error);
-                document.getElementById('productGrid').innerHTML = 
-                    '<p class="error-message">Unable to load featured products. Please try again later.</p>';
+    try {
+        const response = await fetch('/api/products', {
+            credentials: 'include',
+            headers: {
+                'Accept': 'application/json'
             }
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to fetch products');
         }
 
-        async function handleAddToCart(productId) {
-            try {
-                const isAuthenticated = await checkAuthentication();
-                
-                if (!isAuthenticated) {
-                    sessionStorage.setItem('returnTo', '/index.html');
-                    window.location.href = '/login.html';
-                    return;
-                }
-
-                // Add loading state to button
-                const button = document.querySelector(`button[onclick="handleAddToCart(${productId})"]`);
-                if (!button) {
-                    throw new Error('Button not found');
-                }
-
-                button.disabled = true;
-                button.textContent = 'Adding...';
-
-                const cartData = {
-                    product_id: productId,
-                    quantity: 1
-                };
-                console.log('Sending cart data:', cartData); // Debug log
-
-                const response = await fetch('/api/cart', {
-                    method: 'POST',
-                    credentials: 'include',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json'
-                    },
-                    body: JSON.stringify(cartData)
-                });
-
-                console.log('Cart response status:', response.status); // Debug log
-
-                if (response.status === 401) {
-                    sessionStorage.setItem('returnTo', '/index.html');
-                    window.location.href = '/login.html';
-                    return;
-                }
-
-                const responseData = await response.json();
-                console.log('Cart response data:', responseData); // Debug log
-
-                if (response.ok) {
-                    button.textContent = 'Added to Cart!';
-                    setTimeout(() => {
-                        button.disabled = false;
-                        button.textContent = 'Add to Cart';
-                    }, 2000);
-                } else {
-                    throw new Error(responseData.message || 'Failed to add to cart');
-                }
-            } catch (error) {
-                console.error('Error adding to cart:', error);
-                const button = document.querySelector(`button[onclick="handleAddToCart(${productId})"]`);
-                if (button) {
-                    button.disabled = false;
-                    button.textContent = 'Add to Cart';
-                }
-                alert('Failed to add item to cart. Please try again.');
-            }
-        }
+        const data = await response.json();
+        const grid = document.getElementById('productGrid');
         
-        // Initialize page
-        let initializationInProgress = false;
-        document.addEventListener('DOMContentLoaded', async () => {
-            if (initializationInProgress) return;
-            initializationInProgress = true;
+        if (data && data.length > 0) {
+            const featuredProducts = data.slice(0, 3);
+            
+            featuredProducts.forEach(product => {
+                const div = document.createElement('div');
+                div.className = 'product-item';
+                div.onclick = () => window.location.href = '/catalog.html';
+                div.innerHTML = `
+                    <div class="product-icon">
+                        <i class="fas ${getProductIcon(product.name)} fa-3x"></i>
+                    </div>
+                    <h3>${product.name}</h3>
+                    <p class="price">$${parseFloat(product.price).toFixed(2)}</p>
+                    <button class="view-details-btn">View Details</button>
+                `;
+                grid.appendChild(div);
+            });
+        } else {
+            grid.innerHTML = '<p class="no-products">No products available.</p>';
+        }
+    } catch (error) {
+        console.error('Error loading products:', error);
+        grid.innerHTML = '<p class="error-message">Failed to load products. Please try again.</p>';
+    }
+}
 
+// Helper function to get Font Awesome icon class
+function getProductIcon(productName) {
+    const name = productName.toLowerCase();
+    if (name.includes('laptop') || name.includes('macbook')) {
+        return 'fa-laptop';
+    } else if (name.includes('phone') || name.includes('iphone')) {
+        return 'fa-mobile-alt';
+    } else if (name.includes('tablet') || name.includes('ipad')) {
+        return 'fa-tablet-alt';
+    } else if (name.includes('watch')) {
+        return 'fa-clock';
+    } else if (name.includes('airpods') || name.includes('headphones')) {
+        return 'fa-headphones';
+    } else if (name.includes('playstation') || name.includes('nintendo')) {
+        return 'fa-gamepad';
+    }
+    return 'fa-box'; // Default icon
+}
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', async () => {
             try {
-                const isAuthenticated = await updateUserSection();
+                await updateUserSection();
                 await loadFeaturedProducts();
+                setupCarousel();
             } catch (error) {
                 console.error('Initialization error:', error);
-            } finally {
-                initializationInProgress = false;
             }
         });
     </script>

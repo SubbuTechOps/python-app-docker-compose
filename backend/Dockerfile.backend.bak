@@ -1,0 +1,22 @@
+# Base image
+FROM python:3.9-slim
+
+# Set the working directory inside the container
+WORKDIR /app
+
+# Copy the requirements file and install dependencies
+COPY backend/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy the backend application code
+COPY backend/ .
+
+# Copy the frontend directory into the container
+COPY frontend /frontend
+
+# Expose the application port
+EXPOSE 5000
+
+# Run the Flask application
+CMD ["flask", "run"]
+

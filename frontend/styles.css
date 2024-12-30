@@ -15,7 +15,14 @@ header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 20px; /* Add space below the header */
+    margin-bottom: 0; /* Changed to 0 for carousel */
+}
+
+.navbar {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
 .navbar nav {
@@ -37,145 +44,191 @@ header {
     font-size: 1.8em;
 }
 
-/* Section Title Styling */
-.featured h2, .cart-title, .hero h2 {
-    text-align: center; /* Center align for all titles */
-    margin-top: 20px; /* Space above the title */
-    margin-bottom: 20px; /* Space below the title */
-    font-size: 2em;
-    color: #333;
+/* Carousel Styles */
+.image-carousel {
+    width: 100%;
+    overflow: hidden;
+    position: relative;
+    margin-bottom: 2rem;
+    background: white;
+}
+
+.carousel-container {
+    position: relative;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.carousel-track {
+    display: flex;
+    transition: transform 0.5s ease-in-out;
+}
+
+.carousel-slide {
+    min-width: 100%;
+    position: relative;
+}
+
+.carousel-slide img {
+    width: 100%;
+    height: 400px;
+    object-fit: cover;
+}
+
+.slide-content {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 20px;
+    background: linear-gradient(transparent, rgba(0,0,0,0.7));
+    color: white;
+}
+
+.slide-content h3 {
+    margin: 0;
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.slide-content p {
+    margin: 0;
+    font-size: 1rem;
+}
+
+.carousel-button {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(0,0,0,0.5);
+    color: white;
+    border: none;
+    padding: 16px;
+    cursor: pointer;
+    font-size: 18px;
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.3s;
+    z-index: 10;
+}
+
+.carousel-button:hover {
+    background: rgba(0,0,0,0.8);
+}
+
+.carousel-button.prev {
+    left: 10px;
+}
+
+.carousel-button.next {
+    right: 10px;
+}
+
+.carousel-dots {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 10px;
+    z-index: 10;
+}
+
+.dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.5);
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.dot.active {
+    background: white;
 }
 
 /* Hero Section */
 .hero {
     text-align: center;
-    background-color: #f8f9fa;
-    padding: 3em 1em;
+    padding: 3rem 1rem;
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    margin-bottom: 2rem;
+}
+
+.hero h2 {
+    font-size: 2.5rem;
+    color: #333;
+    margin-bottom: 1rem;
 }
 
 .hero p {
-    font-size: 1.2em;
+    font-size: 1.2rem;
     color: #666;
+    max-width: 800px;
+    margin: 0 auto;
 }
 
-/* Product Grid (Home Page & Catalog Page) */
+/* Product Grid */
 .product-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 1.5em;
-    padding: 0 2em 2em;
+    gap: 2rem;
+    padding: 2rem;
     max-width: 1200px;
     margin: 0 auto;
 }
 
 .product-item {
     background: white;
-    border: 1px solid #ddd;
     border-radius: 8px;
-    padding: 1em;
+    padding: 1.5rem;
     text-align: center;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-    transition: transform 0.3s, box-shadow 0.3s;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transition: transform 0.3s ease;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
 }
 
 .product-item:hover {
-    transform: scale(1.05);
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    transform: translateY(-5px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+.product-icon {
+    font-size: 2.5rem;
+    color: #007bff;
+    margin-bottom: 0.5rem;
 }
 
 .product-item h3 {
-    margin-bottom: 0.5em;
+    margin: 0;
     color: #333;
+    font-size: 1.2rem;
 }
 
-.product-item p {
-    color: #555;
-    font-size: 1.1em;
+.price {
+    color: #f02236;
+    font-size: 1.1rem;
+    font-weight: bold;
+    margin: 0.5rem 0;
 }
 
-.product-item button {
+
+
+.view-details-btn:hover {
     background-color: #007bff;
     color: white;
-    border: none;
-    padding: 0.6em 1.2em;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 1em;
 }
 
-.product-item button:hover {
-    background-color: #0056b3;
-}
-
-.product-image {
-    width: 100px;
-    height: 100px;
-    object-fit: cover;
-    border-radius: 50%;
-    margin-bottom: 10px;
-}
-
-/* Cart Section */
-.cart-section {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 2em;
-}
-
-.cart-title {
-    text-align: left;
-    margin-top: 20px; /* Space above the title */
-    margin-bottom: 20px; /* Space below the title */
-    padding-left: 2em;
-    font-size: 2em;
-    color: #333;
-}
-
-.cart-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 1.5em;
-}
-
-.cart-card {
-    background: white;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    padding: 1em;
-    text-align: center;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-    transition: transform 0.3s, box-shadow 0.3s;
-}
-
-.cart-card:hover {
-    transform: scale(1.05);
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-}
-
-.cart-card h3 {
-    margin-bottom: 0.5em;
-    color: #333;
-}
-
-.cart-card p {
-    color: #555;
-    font-size: 1.1em;
-}
-
-.cart-card button {
-    background-color: #007bff;
-    color: white;
-    border: none;
-    padding: 0.6em 1.2em;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 1em;
-}
-
-.cart-card button:hover {
-    background-color: #0056b3;
-}
-
+/* User Section */
 .user-section {
     display: inline-flex;
     align-items: center;
@@ -200,190 +253,195 @@ header {
     background-color: rgba(255, 255, 255, 0.2);
 }
 
-.signup-section {
-    max-width: 400px;
-    margin: 2em auto;
-    background: #fff;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    padding: 2em;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+/* Featured Section */
+.featured {
+    padding: 2rem;
+}
+
+.featured h2 {
     text-align: center;
-}
-
-.signup-section h2 {
-    margin-bottom: 1em;
+    font-size: 2rem;
     color: #333;
+    margin-bottom: 2rem;
 }
 
-.signup-section form {
+/* Messages */
+.no-products, .error-message {
+    text-align: center;
+    color: #666;
+    padding: 2rem;
+    font-size: 1.1rem;
+}
+
+.error-message {
+    color: #dc3545;
+}
+/* Price styling for catalog and home page */
+.price, .product-price {
+    color: #28a745 ;
+    font-size: 1.1rem;
+    font-weight: bold;
+    margin: 0.3rem 0;
+}
+.product-price {
+    color: #28a745 ;
+    font-size: 1.1rem;
+    font-weight: bold;
+    margin: 0.3rem 0;
+}
+
+/* Cart item styling to match catalog view */
+.cart-item {
+    background: white;
+    border-radius: 8px;
+    padding: 1.5rem;
+    text-align: center;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transition: transform 0.3s ease;
+    margin-bottom: 1rem;
+    display: inline-block;
+    width: calc(33.33% - 2rem);
+    margin: 1rem;
+    vertical-align: top;
+}
+
+/* Welcome banner styling */
+.welcome-banner {
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 10px;
+    position: relative;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+.welcome-text {
+    display: inline-block;
+    animation: scrollText 20s linear infinite;
+    padding-right: 50px;
+}
+/* Hero Section */
+.hero {
+    text-align: center;
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    padding: 2rem 1rem; /* Reduced padding */
+    margin-bottom: 1rem; /* Reduced margin */
+}
+
+.hero h2 {
+    font-size: 2.5rem;
+    color: #333;
+    margin-bottom: 0.5rem; /* Reduced margin */
+}
+
+.hero p {
+    font-size: 1.2rem;
+    color: #666;
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+/* Featured Section */
+.featured {
+    padding: 1rem; /* Reduced padding */
+}
+
+.featured h2 {
+    text-align: center;
+    font-size: 2rem;
+    color: #333;
+    margin-bottom: 1.5rem;
+}
+
+/* Product Grid */
+.product-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 2rem;
+    padding: 1rem;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.product-item {
+    background: white;
+    border-radius: 8px;
+    padding: 1.5rem;
+    text-align: center;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transition: transform 0.3s ease;
     display: flex;
     flex-direction: column;
-    gap: 1em;
-}
-
-.signup-section input {
-    padding: 0.5em;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    font-size: 1em;
-}
-
-.signup-section button {
-    padding: 0.7em;
-    background: #007bff;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 1em;
-}
-
-.signup-section button:hover {
-    background: #0056b3;
-}
-
-.signup-section #message {
-    margin-top: 1em;
-    font-size: 1em;
-}
-/* Login Section */
-.login-section {
-    display: flex;
-    justify-content: center;
     align-items: center;
-    min-height: 70vh; /* Adjust height to center the form */
-    background-color: #f9f9f9;
+    gap: 0.8rem; /* Reduced gap */
 }
 
-.login-container {
-    background: white;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    padding: 2em;
-    width: 100%;
-    max-width: 400px; /* Set a max width for the form */
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-    text-align: center;
+
+
+.product-icon i {
+    font-size: 1.8em; /* Reduced size for icons */
+    color: #007bff;
 }
 
-.login-container h2 {
-    margin-bottom: 1em;
-    color: #333;
-}
-
-.form-group {
-    margin-bottom: 1em;
-    text-align: left; /* Align labels and inputs to the left */
-}
-
-.form-group label {
-    display: block;
-    margin-bottom: 0.5em;
-    font-weight: bold;
-    color: #555;
-}
-
-.form-group input {
-    width: 100%;
-    padding: 0.6em;
-    border: 1px solid #ddd;
+.view-details-btn {
+    background-color: transparent;
+    color: #007bff;
+    border: 1px solid #007bff;
+    padding: 6px 14px;
     border-radius: 4px;
-    font-size: 1em;
-}
-
-button {
-    width: 100%;
-    padding: 0.8em;
-    border: none;
-    border-radius: 4px;
-    background-color: #007bff;
-    color: white;
-    font-size: 1em;
     cursor: pointer;
-}
-
-button:hover {
-    background-color: #0056b3;
-}
-
-#message {
-    margin-top: 1em;
     font-size: 0.9em;
+    transition: all 0.3s ease;
+    margin-top: auto; /* Push button to bottom */
 }
-.form-container {
-    width: 100%;
-    max-width: 400px;
-    margin: 50px auto; /* Center the form vertically and horizontally */
-    padding: 20px;
-    border: 1px solid #ddd;
+
+
+
+/* Welcome Banner */
+.welcome-banner {
+    background: #343a40;
+    color: white;
+    padding: 8px 0;
+    text-align: center;
+    margin-bottom: 1rem;
+}
+@keyframes scrollText {
+    0% { transform: translateX(100%); }
+    100% { transform: translateX(-100%); }
+}
+
+/* Cart total section */
+.cart-total-section {
+    text-align: right;
+    margin: 2rem 0;
+    padding: 1rem;
+    background: white;
     border-radius: 8px;
-    background-color: #fff;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-    text-align: center;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
-form label {
-    display: block;
-    margin: 10px 0 5px;
-    text-align: left;
-}
-
-form input {
-    width: 100%;
-    padding: 10px;
-    margin-bottom: 15px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-}
-
-form button {
-    width: 100%;
-    padding: 10px;
-    background-color: #007bff;
+.remove-btn {
+    background-color: #dc3545;
     color: white;
     border: none;
+    padding: 5px 10px;
     border-radius: 4px;
     cursor: pointer;
+    margin-top: 10px;
 }
 
-form button:hover {
-    background-color: #0056b3;
-}
-.place-order-btn:hover {
-    background-color: #218838 !important;
+.remove-btn:hover {
+    background-color: #c82333;
 }
 
-.place-order-btn:disabled {
-    background-color: #6c757d !important;
-    cursor: not-allowed;
+.cart-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2rem;
+    padding: 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
 }
-.order-button-container {
-    text-align: center;
-    margin-top: 20px;
-    padding: 10px;
-}
-
-.place-order-btn {
-    background-color: #28a745;
-    color: white;
-    padding: 12px 24px;
-    border: none;
-    border-radius: 4px;
-    font-size: 16px;
-    cursor: pointer;
-    transition: background-color 0.3s;
-}
-
-.place-order-btn:hover {
-    background-color: #218838;
-}
-
-.place-order-btn:disabled {
-    background-color: #6c757d;
-    cursor: not-allowed;
-}
-
 /* Footer */
 footer {
     background-color: #f1f1f1;
@@ -398,9 +456,14 @@ footer p {
     margin: 0;
 }
 
+
 /* Responsive Styles */
 @media (max-width: 768px) {
     header {
+        padding: 1em;
+    }
+
+    .navbar {
         flex-direction: column;
         align-items: flex-start;
     }
@@ -408,26 +471,60 @@ footer p {
     .navbar nav {
         flex-direction: column;
         gap: 10px;
+        margin-top: 1rem;
+        width: 100%;
+    }
+
+    .carousel-slide img {
+        height: 300px;
+    }
+
+    .slide-content h3 {
+        font-size: 1.2rem;
+    }
+
+    .slide-content p {
+        font-size: 0.9rem;
     }
 
     .hero h2 {
-        font-size: 1.8em;
+        font-size: 1.8rem;
     }
 
     .hero p {
-        font-size: 1em;
+        font-size: 1rem;
     }
 
-    .product-grid, .cart-grid {
-        padding: 1em;
+    .product-grid {
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        padding: 1rem;
+        gap: 1rem;
     }
 
-    .product-item button, .cart-card button {
-        font-size: 0.9em;
-        padding: 0.5em 1em;
+   
+
+    .carousel-button {
+        width: 40px;
+        height: 40px;
+        font-size: 16px;
     }
 
-    .featured h2, .cart-title {
-        padding-left: 1em;
+    .dot {
+        width: 10px;
+        height: 10px;
+    }
+}
+
+@media (max-width: 480px) {
+    .carousel-slide img {
+        height: 250px;
+    }
+
+    .product-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .hero h2 {
+        font-size: 1.5rem;
     }
 }

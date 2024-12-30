@@ -8,6 +8,7 @@
     <meta http-equiv="Expires" content="0">
     <title>ShopEasy - Cart</title>
     <link rel="stylesheet" href="/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 </head>
 <body>
     <header>
@@ -25,15 +26,13 @@
     </header>
     <main>
         <section class="cart-section">
-            <h2 class="cart-title">Your Cart</h2>
-            <div class="cart-grid" id="cartItems"></div>
-            <div id="cartTotalContainer" style="text-align: center; font-size: 1.2em; margin-top: 1em;">
-                <p id="cartTotal" class="cart-total"></p>
+            <h2>Your Cart</h2>
+            <div class="cart-grid" id="cartItems">
+                <!-- Cart items will be loaded here -->
             </div>
-            <div id="orderButtonContainer" style="text-align: center; margin-top: 20px;">
-                <button onclick="placeOrder()" class="place-order-btn" style="background-color: #28a745; color: white; padding: 12px 24px; border: none; border-radius: 5px; cursor: pointer;">
-                    Place Order
-                </button>
+            <div class="cart-total-section">
+                <h3 id="cartTotal" class="price">Cart Total: $0.00</h3>
+                <button onclick="placeOrder()" class="place-order-btn">Place Order</button>
             </div>
         </section>
     </main>

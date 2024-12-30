@@ -8,6 +8,7 @@
     <meta http-equiv="Expires" content="0">
     <title>ShopEasy - Catalog</title>
     <link rel="stylesheet" href="/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 </head>
 <body>
     <header>
@@ -28,6 +29,7 @@
             <h2>Product Catalog</h2>
             <div class="product-grid" id="catalogGrid"></div>
         </section>
+        
     </main>
     <footer>
         <p>&copy; 2024 ShopEasy. All rights reserved.</p>
@@ -87,7 +89,7 @@
                 window.location.reload();
             }
         }
-
+        
         async function checkAuthentication() {
             try {
                 const response = await fetch('/api/auth/status', { 
