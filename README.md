@@ -269,8 +269,8 @@ CREATE TABLE order_items (
 
 1. **Clone Repository**
 ```bash
-git clone https://github.com/yourusername/shopeasy.git
-cd shopeasy
+git clone https://github.com/SubbuTechOps/ecommerce-app-three-tier.git
+cd ecommerce-app-three-tier
 ```
 
 2. **Environment Setup**
