@@ -408,6 +408,11 @@ header {
 }
 
 /* Cart total section */
+.cart-summary {
+    text-align: right;
+    margin: 2rem;
+    padding: 1rem;
+}
 .cart-total-section {
     text-align: right;
     margin: 2rem 0;
@@ -437,6 +442,24 @@ header {
     background-color: #218838;
 }
 
+.quantity {
+    color: #666;
+    margin: 0.5rem 0;
+}
+
+.total {
+    color: #28a745;
+    font-weight: bold;
+    margin: 0.5rem 0;
+}
+
+.empty-cart {
+    text-align: center;
+    padding: 2rem;
+    color: #666;
+    font-size: 1.1rem;
+}
+
 .remove-btn {
     background-color: #dc3545;
     color: white;
@@ -462,6 +485,43 @@ header {
     margin: 0 auto;
 }
 /* Footer */
+/* Add this to your styles.css */
+.developer-banner {
+    background: linear-gradient(45deg, #007bff, #0056b3);
+    color: white;
+    text-align: center;
+    padding: 15px;
+    margin-top: 2rem;
+    position: relative;
+    overflow: hidden;
+}
+
+.developer-banner::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(45deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 100%);
+    pointer-events: none;
+}
+
+.developer-text {
+    font-size: 1.2rem;
+    font-weight: 500;
+    letter-spacing: 1px;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+}
+
+.developer-name {
+    font-weight: bold;
+    padding: 3px 10px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 15px;
+    margin-left: 5px;
+    color:yellow
+}
 footer {
     background-color: #f1f1f1;
     text-align: center;

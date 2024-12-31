@@ -37,6 +37,13 @@
         </section>
     </main>
     <footer>
+
+        <div class="developer-banner">
+            <div class="developer-text">
+                Developed By <span class="developer-name">SubbuTechOps</span>
+            </div>
+        </div>
+        
         <p>&copy; 2024 ShopEasy. All rights reserved.</p>
     </footer>
     <script>
@@ -133,6 +140,25 @@
                 cartItemsDiv.innerHTML = "<p class='error-message'>Failed to load cart.</p>";
             }
         }
+
+        // Helper function to get Font Awesome icon class (same as catalog)
+function getProductIcon(productName) {
+    const name = productName.toLowerCase();
+    if (name.includes('laptop') || name.includes('macbook')) {
+        return 'fa-laptop';
+    } else if (name.includes('phone') || name.includes('iphone')) {
+        return 'fa-mobile-alt';
+    } else if (name.includes('tablet') || name.includes('ipad')) {
+        return 'fa-tablet-alt';
+    } else if (name.includes('watch')) {
+        return 'fa-clock';
+    } else if (name.includes('airpods') || name.includes('headphones')) {
+        return 'fa-headphones';
+    } else if (name.includes('playstation') || name.includes('nintendo')) {
+        return 'fa-gamepad';
+    }
+    return 'fa-box'; // Default icon
+}
 
         async function removeFromCart(productId) {
             try {
