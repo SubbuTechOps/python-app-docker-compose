@@ -134,6 +134,37 @@
             }
         }
 
+        async function removeFromCart(productId) {
+            try {
+                const response = await fetch('/api/cart', {
+                    method: 'DELETE',
+                    credentials: 'include',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ product_id: productId })
+                });
+
+                if (response.status === 401) {
+                    sessionStorage.setItem('returnTo', '/cart.html');
+                    window.location.href = '/login.html';
+                    return;
+                }
+
+                if (!response.ok) {
+                    throw new Error('Failed to remove item from cart');
+                }
+
+                // Reload cart after successful removal
+                await loadCart();
+            } catch (error) {
+                console.error('Error removing item from cart:', error);
+                alert('Failed to remove item. Please try again.');
+            }
+        }
+
+
         // Place order function
         async function placeOrder() {
             try {
