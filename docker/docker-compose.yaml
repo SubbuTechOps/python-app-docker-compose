@@ -2,8 +2,10 @@ version: "3.8"
 services:
   backend:
     build:
-      context: ../
+      context: .. 
       dockerfile: backend/Dockerfile.backend
+    image: ecommerce-app-backend:latest
+    container_name: ecommerce-app-backend
     ports:
       - "5000:5000"
     volumes:
@@ -30,7 +32,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
+      start_period: 60s
 
   db:
     image: mysql:8.0

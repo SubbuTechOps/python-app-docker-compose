@@ -1,0 +1,45 @@
+backend:
+  name: ecommerce-backend
+  image:
+    repository: your-account-id.dkr.ecr.your-region.amazonaws.com/ecommerce-app
+    tag: backend-v1
+  replicas: 2
+  service:
+    type: LoadBalancer
+    port: 5000
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 250m
+      memory: 256Mi
+
+mysql:
+  name: ecommerce-db
+  image:
+    repository: mysql
+    tag: "8.0"
+  service:
+    port: 3306
+  storage:
+    size: 10Gi
+  resources:
+    limits:
+      cpu: 500m
+      memory: 1Gi
+    requests:
+      cpu: 250m
+      memory: 512Mi
+
+config:
+  flaskDebug: "true"
+  sessionType: "filesystem"
+  sessionFileDir: "/tmp/flask_sessions"
+
+secrets:
+  mysqlRootPassword: admin@1234
+  mysqlUser: subbu
+  mysqlPassword: admin@1234
+  mysqlDatabase: ecommerce
+  flaskSecretKey: "ecommerce_app_secret_key_2024_secure_shopping"
