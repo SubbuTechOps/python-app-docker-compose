@@ -8,10 +8,10 @@ services:
       - "5000:5000"
     volumes:
       - ../frontend:/frontend
-      - flask_sessions:/tmp/flask_sessions  # Changed path to match app.py
+      - flask_sessions:/tmp/flask_sessions
     depends_on:
       db:
-        condition: service_healthy  # Add health check dependency
+        condition: service_healthy
     environment:
       FLASK_APP: app.py
       FLASK_RUN_HOST: 0.0.0.0
@@ -24,8 +24,8 @@ services:
       DB_NAME: ecommerce
       SECRET_KEY: "ecommerce_app_secret_key_2024_secure_shopping"
       SESSION_TYPE: "filesystem"
-      SESSION_FILE_DIR: "/tmp/flask_sessions"  # Changed to match volume mount
-    healthcheck:  # Add healthcheck for backend
+      SESSION_FILE_DIR: "/tmp/flask_sessions"
+    healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
       interval: 30s
       timeout: 10s
@@ -46,31 +46,12 @@ services:
       - db_data:/var/lib/mysql
       - ../backend/database/01_schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
       - ../backend/database/02_data.sql:/docker-entrypoint-initdb.d/02_data.sql:ro
-    healthcheck:  # Add healthcheck for database
+    healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "subbu", "-padmin@1234"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 30s
-
-  password-update:
-    build:
-      context: ../
-      dockerfile: backend/Dockerfile.backend
-    depends_on:
-      db:
-        condition: service_healthy
-    environment:
-      DB_HOST: db
-      DB_PORT: 3306
-      DB_USER: subbu
-      DB_PASSWORD: admin@1234
-      DB_NAME: ecommerce
-      SECRET_KEY: "ecommerce_app_secret_key_2024_secure_shopping"
-    command: python update_passwords.py
-    volumes:
-      - ../backend:/app/backend
-      - flask_sessions:/tmp/flask_sessions
 
 networks:
   default:

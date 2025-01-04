@@ -1,10 +1,24 @@
 from flask import Blueprint, request, jsonify, session, make_response, redirect, url_for
 from models.user import User
 import logging
+import bcrypt
+from functools import wraps
 
 logger = logging.getLogger(__name__)
 
 auth_bp = Blueprint('auth', __name__)
+
+# Add admin role check decorator
+def admin_required(view_function):
+    @wraps(view_function)
+    def wrapper(*args, **kwargs):
+        logger.debug(f"Checking admin rights - Current session: {session}")
+        if 'user_id' not in session:
+            return jsonify({"message": "Authentication required"}), 401
+        if not session.get('is_admin', False):
+            return jsonify({"message": "Admin privileges required"}), 403
+        return view_function(*args, **kwargs)
+    return wrapper
 
 # Add check auth status route
 @auth_bp.route('/status', methods=['GET'])
@@ -83,6 +97,7 @@ def login():
             # Set new session
             session['username'] = username
             session['user_id'] = user.user_id
+            session['is_admin'] = user.is_admin  # Add admin status to session
             session.permanent = True
             
             logger.debug(f"Login successful - Session after: {session}")
@@ -121,12 +136,63 @@ def logout():
             "error": str(e)
         }), 500
 
+@auth_bp.route('/admin/update-passwords', methods=['POST'])
+@admin_required
+def admin_update_passwords():
+    """Admin route to update plain text passwords with bcrypt hashes"""
+    try:
+        logger.info("Starting password hash update process")
+        updated_count = 0
+        skipped_count = 0
+        
+        # Get all users using the User model
+        users = User.get_all_users()
+        
+        for user in users:
+            # Skip already hashed passwords
+            if user.password.startswith('$2b$'):
+                logger.debug(f"Skipping already hashed password for user: {user.username}")
+                skipped_count += 1
+                continue
+                
+            try:
+                # Hash the plain text password
+                hashed = bcrypt.hashpw(user.password.encode('utf-8'), bcrypt.gensalt())
+                
+                # Update the user's password
+                User.update_password(user.user_id, hashed.decode('utf-8'))
+                logger.debug(f"Updated password for user: {user.username}")
+                updated_count += 1
+                
+            except Exception as e:
+                logger.error(f"Error updating password for user {user.username}: {str(e)}")
+                continue
+        
+        logger.info(f"Password update completed. Updated: {updated_count}, Skipped: {skipped_count}")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Password update completed',
+            'stats': {
+                'total_processed': len(users),
+                'updated': updated_count,
+                'skipped': skipped_count
+            }
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error in admin password update: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'message': f'Error updating passwords: {str(e)}'
+        }), 500
+
 # Add authentication middleware
 def login_required(view_function):
+    @wraps(view_function)
     def wrapper(*args, **kwargs):
         logger.debug(f"Checking authentication - Current session: {session}")
         if 'user_id' not in session:
             return jsonify({"message": "Authentication required"}), 401
         return view_function(*args, **kwargs)
-    wrapper.__name__ = view_function.__name__
     return wrapper
