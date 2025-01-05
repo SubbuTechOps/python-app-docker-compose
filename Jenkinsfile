@@ -8,7 +8,6 @@ pipeline {
         GIT_COMMIT_SHORT = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
         IMAGE_TAG = "${GIT_COMMIT_SHORT}-${BUILD_NUMBER}"
         REPOSITORY_URI = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${IMAGE_REPO_NAME}"
-        HELM_RELEASE_NAME = 'ecommerce'
         HELM_CHART_PATH = './helm/ecommerce-app'
     }
     
@@ -63,15 +62,19 @@ pipeline {
                             aws eks update-kubeconfig --name demo-eks-cluster --region ${AWS_DEFAULT_REGION}
                             
                             echo "Cleaning up existing resources..."
-                            helm uninstall ${HELM_RELEASE_NAME}-db -n ecommerce || true
+                            helm uninstall ecommerce-db -n ecommerce || true
                             kubectl delete pvc --all -n ecommerce || true
                             sleep 30
                             
+                            echo "Checking storage classes..."
+                            kubectl get sc
+                            
                             echo "Deploying MySQL with debug output..."
-                            helm install ${HELM_RELEASE_NAME}-db ${HELM_CHART_PATH}/mysql \
+                            helm install ecommerce-db ${HELM_CHART_PATH} \
                                 --namespace ecommerce \
                                 --create-namespace \
-                                --set storageClassName=ebs-sc \
+                                --set backend.enabled=false \
+                                --set mysql.storageClassName=ebs-sc \
                                 --debug \
                                 --wait \
                                 --timeout 5m || {
@@ -98,19 +101,18 @@ pipeline {
                         sh """
                             echo "Deploying backend with image: ${IMAGE_TAG}"
                             
-                            helm upgrade --install ${HELM_RELEASE_NAME}-backend ${HELM_CHART_PATH}/backend \
+                            helm upgrade --install ecommerce-backend ${HELM_CHART_PATH} \
                                 --namespace ecommerce \
-                                --set image.repository=${REPOSITORY_URI} \
-                                --set image.tag=backend-${IMAGE_TAG} \
+                                --set mysql.enabled=false \
+                                --set backend.image.repository=${REPOSITORY_URI} \
+                                --set backend.image.tag=backend-${IMAGE_TAG} \
                                 --debug \
                                 --wait \
                                 --timeout 5m
                             
-                            echo "Verifying backend deployment..."
-                            kubectl rollout status deployment/${HELM_RELEASE_NAME}-backend -n ecommerce --timeout=300s
-                            
                             echo "Checking backend pod logs..."
-                            kubectl logs -l app=ecommerce-backend -n ecommerce --tail=100
+                            kubectl get pods -n ecommerce -l app=ecommerce-backend
+                            kubectl logs -l app=ecommerce-backend -n ecommerce --tail=100 || true
                         """
                     }
                 }
@@ -134,14 +136,19 @@ pipeline {
         failure {
             echo 'Deployment failed!'
             script {
-                sh """
-                    echo "=== Deployment Failure Debug Info ==="
-                    aws eks update-kubeconfig --name demo-eks-cluster --region ${AWS_DEFAULT_REGION}
-                    echo "Failed image tag: ${IMAGE_TAG}"
-                    kubectl get all -n ecommerce || true
-                    kubectl describe pods -n ecommerce || true
-                    kubectl logs -l app=ecommerce-backend -n ecommerce --tail=100 || true
-                """
+                withAWS(credentials: 'aws-access', region: env.AWS_DEFAULT_REGION) {
+                    sh """
+                        echo "=== Deployment Failure Debug Info ==="
+                        aws eks update-kubeconfig --name demo-eks-cluster --region ${AWS_DEFAULT_REGION}
+                        echo "Failed image tag: ${IMAGE_TAG}"
+                        kubectl get all -n ecommerce || true
+                        kubectl describe pods -n ecommerce || true
+                        echo "\\nPod Logs:"
+                        kubectl logs -l app=ecommerce-backend -n ecommerce --tail=100 || true
+                        echo "\\nEvents:"
+                        kubectl get events -n ecommerce --sort-by='.lastTimestamp' || true
+                    """
+                }
             }
         }
     }
