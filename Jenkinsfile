@@ -57,26 +57,32 @@ pipeline {
                         sh """
                             aws eks update-kubeconfig --name demo-eks-cluster --region ${AWS_DEFAULT_REGION}
                             
-                            # Check PV status before deployment
-                            kubectl get pv,pvc -n ecommerce
+                            # Check storage class and PVC status
+                            kubectl get sc
+                            kubectl get pvc -n ecommerce
 
-                            # Deploy MySQL with increased timeout
+                            # Deploy MySQL StatefulSet
                             helm upgrade --install ${HELM_RELEASE_NAME}-db ${HELM_CHART_PATH} \
                                 --namespace ecommerce \
                                 --create-namespace \
                                 --wait --timeout 15m
                             
-                            # Check pod status
-                            echo "Checking MySQL pod status..."
-                            kubectl get pods -n ecommerce
+                            # Check StatefulSet status
+                            echo "Checking MySQL StatefulSet status..."
+                            kubectl get statefulset -n ecommerce
                             
-                            # Wait for MySQL to be ready
-                            echo "Waiting for MySQL to be ready..."
-                            kubectl wait --for=condition=ready pod -l app=ecommerce-db -n ecommerce --timeout=600s
+                            # Wait for StatefulSet to be ready
+                            echo "Waiting for MySQL StatefulSet to be ready..."
+                            kubectl wait --for=condition=ready pod ${HELM_RELEASE_NAME}-mysql-0 -n ecommerce --timeout=600s
                             
-                            # Deploy backend
+                            # Verify PVC and PV
+                            echo "Verifying PVC and PV status..."
+                            kubectl get pvc,pv -n ecommerce
+                            
+                            # Deploy backend with explicit image settings
                             helm upgrade --install ${HELM_RELEASE_NAME}-backend ${HELM_CHART_PATH} \
                                 --namespace ecommerce \
+                                --set backend.image.repository=${REPOSITORY_URI} \
                                 --set backend.image.tag=backend-${IMAGE_TAG} \
                                 --wait --timeout 15m
                             
@@ -93,10 +99,16 @@ pipeline {
                 withAWS(credentials: 'aws-access', region: env.AWS_DEFAULT_REGION) {
                     script {
                         sh """
-                            kubectl get pods -n ecommerce | grep 'ecommerce-db'
+                            # Check StatefulSet status
+                            kubectl get statefulset -n ecommerce
+                            kubectl describe statefulset ${HELM_RELEASE_NAME}-mysql -n ecommerce
+                            
+                            # Check backend deployment
                             kubectl get pods -n ecommerce | grep 'ecommerce-app-backend'
-                            kubectl describe pod -n ecommerce -l app=ecommerce-db
                             kubectl describe pod -n ecommerce -l app=ecommerce-app-backend
+                            
+                            # Check PVC and PV status
+                            kubectl get pvc,pv -n ecommerce
                         """
                     }
                 }
