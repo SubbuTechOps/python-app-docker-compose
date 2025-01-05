@@ -62,22 +62,19 @@ pipeline {
                         sh """
                             aws eks update-kubeconfig --name demo-eks-cluster --region ${AWS_DEFAULT_REGION}
                             
-                            echo "Checking storage classes..."
-                            kubectl get sc
-                            
                             echo "Cleaning up existing resources..."
                             helm uninstall ${HELM_RELEASE_NAME}-db -n ecommerce || true
                             kubectl delete pvc --all -n ecommerce || true
                             sleep 30
                             
                             echo "Deploying MySQL with debug output..."
-                            helm install ${HELM_RELEASE_NAME}-db ${HELM_CHART_PATH} \
+                            helm install ${HELM_RELEASE_NAME}-db ${HELM_CHART_PATH}/mysql \
                                 --namespace ecommerce \
                                 --create-namespace \
-                                --set backend.enabled=false \
+                                --set storageClassName=ebs-sc \
                                 --debug \
                                 --wait \
-                                --timeout 10m || {
+                                --timeout 5m || {
                                     echo "MySQL deployment failed. Checking resources..."
                                     kubectl get pods -n ecommerce
                                     kubectl describe pods -n ecommerce
@@ -85,7 +82,8 @@ pipeline {
                                     exit 1
                                 }
                             
-                            echo "Waiting for MySQL to be ready..."
+                            echo "Verifying MySQL deployment..."
+                            kubectl get statefulset,pod,svc,pvc -n ecommerce
                             kubectl wait --for=condition=ready pod -l app=ecommerce-db -n ecommerce --timeout=300s
                         """
                     }
@@ -100,37 +98,19 @@ pipeline {
                         sh """
                             echo "Deploying backend with image: ${IMAGE_TAG}"
                             
-                            helm upgrade --install ${HELM_RELEASE_NAME}-backend ${HELM_CHART_PATH} \
+                            helm upgrade --install ${HELM_RELEASE_NAME}-backend ${HELM_CHART_PATH}/backend \
                                 --namespace ecommerce \
-                                --set database.enabled=false \
-                                --set backend.image.repository=${REPOSITORY_URI} \
-                                --set backend.image.tag=backend-${IMAGE_TAG} \
+                                --set image.repository=${REPOSITORY_URI} \
+                                --set image.tag=backend-${IMAGE_TAG} \
                                 --debug \
                                 --wait \
                                 --timeout 5m
                             
-                            echo "Waiting for backend deployment..."
+                            echo "Verifying backend deployment..."
                             kubectl rollout status deployment/${HELM_RELEASE_NAME}-backend -n ecommerce --timeout=300s
                             
-                            echo "Checking backend pods..."
-                            kubectl get pods -n ecommerce -l app=ecommerce-backend
+                            echo "Checking backend pod logs..."
                             kubectl logs -l app=ecommerce-backend -n ecommerce --tail=100
-                        """
-                    }
-                }
-            }
-        }
-        
-        stage('Verify Services') {
-            steps {
-                withAWS(credentials: 'aws-access', region: env.AWS_DEFAULT_REGION) {
-                    script {
-                        sh """
-                            echo "Verifying all resources..."
-                            kubectl get all -n ecommerce
-                            
-                            echo "Checking service endpoints..."
-                            kubectl get svc -n ecommerce
                         """
                     }
                 }
