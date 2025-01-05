@@ -5,9 +5,12 @@ metadata:
 spec:
   capacity:
     storage: {{ .Values.mysql.storage.size }}
+  volumeMode: Filesystem
   accessModes:
     - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
   storageClassName: ebs-sc
-  awsElasticBlockStore:
-    volumeID: vol-0fbdc775494ed561f # Replace with your EBS volume ID
+  csi:
+    driver: ebs.csi.aws.com
+    volumeHandle: vol-057b21f942139ae7a
     fsType: ext4

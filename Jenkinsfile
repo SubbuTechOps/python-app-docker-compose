@@ -56,24 +56,25 @@ pipeline {
                         sh """
                             aws eks update-kubeconfig --name demo-eks-cluster --region ${AWS_DEFAULT_REGION}
                             
+                            # Deploy MySQL first - using values.yaml defaults
                             helm upgrade --install ${HELM_RELEASE_NAME}-db ${HELM_CHART_PATH} \
                                 --namespace ecommerce \
                                 --create-namespace \
-                                --set mysql.name=ecommerce-db \
-                                --wait --timeout 5m
+                                --wait --timeout 10m
                             
+                            # Wait for MySQL to be ready
+                            sleep 30
+                            
+                            # Deploy backend - only override the dynamic image tag
                             helm upgrade --install ${HELM_RELEASE_NAME}-backend ${HELM_CHART_PATH} \
                                 --namespace ecommerce \
-                                --set backend.name=ecommerce-app-backend \
-                                --set backend.image.repository=${REPOSITORY_URI} \
                                 --set backend.image.tag=backend-${IMAGE_TAG} \
-                                --wait --timeout 5m
+                                --wait --timeout 10m
                         """
                     }
                 }
             }
         }
-        
         stage('Verify Deployment') {
             steps {
                 withAWS(credentials: 'aws-access', region: env.AWS_DEFAULT_REGION) {
