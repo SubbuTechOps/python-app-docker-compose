@@ -25,13 +25,12 @@ pipeline {
                         docker compose -f docker/docker-compose.yaml build
                         docker compose -f docker/docker-compose.yaml up -d
                         
-                        # Wait for containers to be healthy
                         echo "Waiting for containers to be healthy..."
                         sleep 30
                         
-                        # Check container status
+                        # Use correct container names
                         docker ps -a | grep 'ecommerce-db'
-                        docker ps -a | grep 'docker-backend-1'
+                        docker ps -a | grep 'ecommerce-app-backend'
                     """
                 }
             }
@@ -44,8 +43,8 @@ pipeline {
                         sh """
                             aws ecr get-login-password --region ${AWS_DEFAULT_REGION} | docker login --username AWS --password-stdin ${REPOSITORY_URI}
                             
-                            # Tag the locally built image
-                            docker tag docker-backend-1:latest ${REPOSITORY_URI}:backend-${IMAGE_TAG}
+                            # Use correct container/image names
+                            docker tag ecommerce-app-backend:latest ${REPOSITORY_URI}:backend-${IMAGE_TAG}
                             docker push ${REPOSITORY_URI}:backend-${IMAGE_TAG}
                         """
                     }
@@ -58,20 +57,17 @@ pipeline {
                 withCredentials([string(credentialsId: 'aws-access', variable: 'AWS_ACCESS_KEY')]) {
                     script {
                         sh """
-                            # Update kubeconfig using AWS CLI
                             aws eks update-kubeconfig --name ecommerce-cluster --region ${AWS_DEFAULT_REGION}
                             
-                            # Deploy MySQL first
                             helm upgrade --install ${HELM_RELEASE_NAME}-db ${HELM_CHART_PATH} \
                                 --namespace ecommerce \
                                 --create-namespace \
                                 --set mysql.name=ecommerce-db \
                                 --wait --timeout 5m
                             
-                            # Deploy backend after MySQL is ready
                             helm upgrade --install ${HELM_RELEASE_NAME}-backend ${HELM_CHART_PATH} \
                                 --namespace ecommerce \
-                                --set backend.name=docker-backend \
+                                --set backend.name=ecommerce-app-backend \
                                 --set backend.image.repository=${REPOSITORY_URI} \
                                 --set backend.image.tag=backend-${IMAGE_TAG} \
                                 --wait --timeout 5m
@@ -86,13 +82,10 @@ pipeline {
                 withCredentials([string(credentialsId: 'aws-access', variable: 'AWS_ACCESS_KEY')]) {
                     script {
                         sh """
-                            # Check pod status
                             kubectl get pods -n ecommerce | grep 'ecommerce-db'
-                            kubectl get pods -n ecommerce | grep 'docker-backend'
-                            
-                            # Check container health
+                            kubectl get pods -n ecommerce | grep 'ecommerce-app-backend'
                             kubectl describe pod -n ecommerce -l app=ecommerce-db
-                            kubectl describe pod -n ecommerce -l app=docker-backend
+                            kubectl describe pod -n ecommerce -l app=ecommerce-app-backend
                         """
                     }
                 }
@@ -102,11 +95,12 @@ pipeline {
     
     post {
         always {
-            // Clean up local Docker Compose environment
-            sh """
-                docker compose -f docker/docker-compose.yaml down
-                docker rmi ${REPOSITORY_URI}:backend-${IMAGE_TAG} || true
-            """
+            script {
+                sh """
+                    docker compose -f docker/docker-compose.yaml down
+                    docker rmi ${REPOSITORY_URI}:backend-${IMAGE_TAG} || true
+                """
+            }
         }
         success {
             echo 'Deployment successful!'
