@@ -26,11 +26,11 @@ mysql:
     size: 10Gi
   resources:
     limits:
-      cpu: 500m
-      memory: 1Gi
+      cpu: 300m
+      memory: 768Mi
     requests:
-      cpu: 250m
-      memory: 512Mi
+      cpu: 150m
+      memory: 384Mi
 
 config:
   flaskDebug: "true"
