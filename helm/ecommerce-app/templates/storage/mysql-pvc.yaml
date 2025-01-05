@@ -1,16 +1,11 @@
 apiVersion: v1
-kind: PersistentVolume
+kind: PersistentVolumeClaim
 metadata:
-  name: {{ .Release.Name }}-mysql-pv
+  name: {{ .Release.Name }}-mysql-pvc
 spec:
-  capacity:
-    storage: {{ .Values.mysql.storage.size }}
-  volumeMode: Filesystem
   accessModes:
     - ReadWriteOnce
-  persistentVolumeReclaimPolicy: Retain
   storageClassName: ebs-sc
-  csi:
-    driver: ebs.csi.aws.com
-    volumeHandle: vol-057b21f942139ae7a
-    fsType: ext4
+  resources:
+    requests:
+      storage: {{ .Values.mysql.storage.size }}

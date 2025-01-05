@@ -9,7 +9,7 @@ spec:
   accessModes:
     - ReadWriteOnce
   persistentVolumeReclaimPolicy: Retain
-  storageClassName: ebs-sc
+  storageClassName: ebs-sc 
   csi:
     driver: ebs.csi.aws.com
     volumeHandle: vol-057b21f942139ae7a
