@@ -2,7 +2,7 @@ backend:
   name: ecommerce-backend
   image:
     repository: 017820683847.dkr.ecr.us-east-1.amazonaws.com/ecommerce-app
-    tag: backend-v1
+    # tag will be set dynamically by the pipeline
   replicas: 2
   service:
     type: LoadBalancer
@@ -14,6 +14,7 @@ backend:
     requests:
       cpu: 400m          # Minimum CPU request per pod
       memory: 512Mi      # Minimum memory request per pod
+  enabled: true          # Added to control backend deployment
 
 mysql:
   name: ecommerce-db
@@ -32,6 +33,7 @@ mysql:
     requests:
       cpu: 500m          # Minimum CPU request for stable performance
       memory: 1Gi        # Minimum memory request
+  enabled: true          # Added to control MySQL deployment
 
 config:
   flaskDebug: "true"

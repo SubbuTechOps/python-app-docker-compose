@@ -8,16 +8,9 @@ pipeline {
         GIT_COMMIT_SHORT = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
         IMAGE_TAG = "${GIT_COMMIT_SHORT}-${BUILD_NUMBER}"
         REPOSITORY_URI = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${IMAGE_REPO_NAME}"
-        HELM_CHART_PATH = './helm/ecommerce-app'
     }
     
     stages {
-        stage('Checkout') {
-            steps {
-                checkout scm
-            }
-        }
-        
         stage('Build and Test Locally') {
             steps {
                 script {
@@ -30,8 +23,7 @@ pipeline {
                         echo "Waiting for containers to be healthy..."
                         sleep 30
                         
-                        docker ps -a | grep 'ecommerce-db'
-                        docker ps -a | grep 'ecommerce-app-backend'
+                        docker ps -a
                     """
                 }
             }
@@ -61,32 +53,27 @@ pipeline {
                         sh """
                             aws eks update-kubeconfig --name demo-eks-cluster --region ${AWS_DEFAULT_REGION}
                             
-                            echo "Cleaning up existing resources..."
+                            # Clean up existing resources
+                            kubectl delete deployment -n ecommerce --all || true
+                            kubectl delete statefulset -n ecommerce --all || true
+                            kubectl delete pvc -n ecommerce --all || true
                             helm uninstall ecommerce-db -n ecommerce || true
-                            kubectl delete pvc --all -n ecommerce || true
+                            
+                            echo "Waiting for cleanup..."
                             sleep 30
                             
-                            echo "Checking storage classes..."
-                            kubectl get sc
-                            
-                            echo "Deploying MySQL with debug output..."
-                            helm install ecommerce-db ${HELM_CHART_PATH} \
+                            # Deploy MySQL StatefulSet
+                            echo "Deploying MySQL..."
+                            helm upgrade --install ecommerce-db ./helm/ecommerce-app \
                                 --namespace ecommerce \
                                 --create-namespace \
                                 --set backend.enabled=false \
                                 --set mysql.storageClassName=ebs-sc \
                                 --debug \
                                 --wait \
-                                --timeout 5m || {
-                                    echo "MySQL deployment failed. Checking resources..."
-                                    kubectl get pods -n ecommerce
-                                    kubectl describe pods -n ecommerce
-                                    kubectl get pvc,pv -n ecommerce
-                                    exit 1
-                                }
+                                --timeout 5m
                             
-                            echo "Verifying MySQL deployment..."
-                            kubectl get statefulset,pod,svc,pvc -n ecommerce
+                            # Wait for MySQL to be ready
                             kubectl wait --for=condition=ready pod -l app=ecommerce-db -n ecommerce --timeout=300s
                         """
                     }
@@ -99,9 +86,13 @@ pipeline {
                 withAWS(credentials: 'aws-access', region: env.AWS_DEFAULT_REGION) {
                     script {
                         sh """
-                            echo "Deploying backend with image: ${IMAGE_TAG}"
+                            # Force pull the new image
+                            kubectl delete deployment -n ecommerce -l app=ecommerce-backend || true
+                            sleep 10
                             
-                            helm upgrade --install ecommerce-backend ${HELM_CHART_PATH} \
+                            # Deploy backend with new image
+                            echo "Deploying backend with image: ${IMAGE_TAG}"
+                            helm upgrade --install ecommerce-backend ./helm/ecommerce-app \
                                 --namespace ecommerce \
                                 --set mysql.enabled=false \
                                 --set backend.image.repository=${REPOSITORY_URI} \
@@ -110,9 +101,12 @@ pipeline {
                                 --wait \
                                 --timeout 5m
                             
-                            echo "Checking backend pod logs..."
-                            kubectl get pods -n ecommerce -l app=ecommerce-backend
-                            kubectl logs -l app=ecommerce-backend -n ecommerce --tail=100 || true
+                            # Wait for backend to be ready
+                            kubectl rollout status deployment/ecommerce-backend -n ecommerce --timeout=300s
+                            
+                            echo "Deployment completed. Checking pod status..."
+                            kubectl get pods -n ecommerce
+                            kubectl logs -l app=ecommerce-backend -n ecommerce --tail=100
                         """
                     }
                 }
@@ -131,7 +125,7 @@ pipeline {
             }
         }
         success {
-            echo "Deployment successful! Deployed image: ${REPOSITORY_URI}:backend-${IMAGE_TAG}"
+            echo "Deployment successful!"
         }
         failure {
             echo 'Deployment failed!'
@@ -140,13 +134,9 @@ pipeline {
                     sh """
                         echo "=== Deployment Failure Debug Info ==="
                         aws eks update-kubeconfig --name demo-eks-cluster --region ${AWS_DEFAULT_REGION}
-                        echo "Failed image tag: ${IMAGE_TAG}"
-                        kubectl get all -n ecommerce || true
-                        kubectl describe pods -n ecommerce || true
-                        echo "\\nPod Logs:"
-                        kubectl logs -l app=ecommerce-backend -n ecommerce --tail=100 || true
-                        echo "\\nEvents:"
-                        kubectl get events -n ecommerce --sort-by='.lastTimestamp' || true
+                        kubectl get pods -n ecommerce
+                        kubectl describe pods -n ecommerce -l app=ecommerce-backend
+                        kubectl logs -l app=ecommerce-backend -n ecommerce --tail=100
                     """
                 }
             }
