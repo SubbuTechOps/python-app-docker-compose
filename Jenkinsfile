@@ -21,7 +21,9 @@ pipeline {
                         docker compose -f docker/docker-compose.yaml up -d
                         
                         echo "Waiting for containers to be healthy..."
-                        sleep 30
+                        for i in {1..10}; do
+                            curl -f http://localhost:5000/health && break || sleep 5
+                        done
                         
                         docker ps -a
                     """
@@ -53,7 +55,6 @@ pipeline {
                         sh """
                             aws eks update-kubeconfig --name demo-eks-cluster --region ${AWS_DEFAULT_REGION}
                             
-                            # Clean up existing resources
                             kubectl delete deployment -n ecommerce --all || true
                             kubectl delete statefulset -n ecommerce --all || true
                             kubectl delete pvc -n ecommerce --all || true
@@ -62,7 +63,6 @@ pipeline {
                             echo "Waiting for cleanup..."
                             sleep 30
                             
-                            # Deploy MySQL StatefulSet
                             echo "Deploying MySQL..."
                             helm upgrade --install ecommerce-db ./helm/ecommerce-app \
                                 --namespace ecommerce \
@@ -73,8 +73,7 @@ pipeline {
                                 --wait \
                                 --timeout 5m
                             
-                            # Wait for MySQL to be ready
-                            kubectl wait --for=condition=ready pod -l app=ecommerce-db -n ecommerce --timeout=300s
+                            kubectl get pod -l app=ecommerce-db -n ecommerce
                         """
                     }
                 }
@@ -86,11 +85,9 @@ pipeline {
                 withAWS(credentials: 'aws-access', region: env.AWS_DEFAULT_REGION) {
                     script {
                         sh """
-                            # Force pull the new image
                             kubectl delete deployment -n ecommerce -l app=ecommerce-backend || true
                             sleep 10
                             
-                            # Deploy backend with new image
                             echo "Deploying backend with image: ${IMAGE_TAG}"
                             helm upgrade --install ecommerce-backend ./helm/ecommerce-app \
                                 --namespace ecommerce \
@@ -101,10 +98,7 @@ pipeline {
                                 --wait \
                                 --timeout 5m
                             
-                            # Wait for backend to be ready
                             kubectl rollout status deployment/ecommerce-backend -n ecommerce --timeout=300s
-                            
-                            echo "Deployment completed. Checking pod status..."
                             kubectl get pods -n ecommerce
                             kubectl logs -l app=ecommerce-backend -n ecommerce --tail=100
                         """

@@ -1,8 +1,7 @@
 backend:
-  name: ecommerce-backend
   image:
     repository: 017820683847.dkr.ecr.us-east-1.amazonaws.com/ecommerce-app
-    # tag will be set dynamically by the pipeline
+    tag: backend-18
   replicas: 2
   service:
     type: LoadBalancer
