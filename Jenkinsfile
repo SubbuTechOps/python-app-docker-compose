@@ -48,9 +48,6 @@ pipeline {
                             docker tag ecommerce-app-backend:${IMAGE_TAG} ${REPOSITORY_URI}:backend-${IMAGE_TAG}
                             docker push ${REPOSITORY_URI}:backend-${IMAGE_TAG}
                             
-                            docker tag ecommerce-app-backend:${IMAGE_TAG} ${REPOSITORY_URI}:backend-latest
-                            docker push ${REPOSITORY_URI}:backend-latest
-                            
                             echo "Pushed image: ${REPOSITORY_URI}:backend-${IMAGE_TAG}"
                         """
                     }
@@ -58,41 +55,52 @@ pipeline {
             }
         }
         
-        stage('Deploy to EKS') {
+        stage('Deploy Database') {
             steps {
                 withAWS(credentials: 'aws-access', region: env.AWS_DEFAULT_REGION) {
                     script {
                         sh """
                             aws eks update-kubeconfig --name demo-eks-cluster --region ${AWS_DEFAULT_REGION}
                             
-                            echo "Checking cluster status..."
-                            kubectl get nodes
+                            echo "Checking storage classes..."
                             kubectl get sc
                             
                             echo "Cleaning up existing resources..."
-                            kubectl delete deployment -n ecommerce --all || true
-                            kubectl delete statefulset -n ecommerce --all || true
-                            kubectl delete pvc -n ecommerce --all || true
                             helm uninstall ${HELM_RELEASE_NAME}-db -n ecommerce || true
-                            helm uninstall ${HELM_RELEASE_NAME}-backend -n ecommerce || true
+                            kubectl delete pvc --all -n ecommerce || true
+                            sleep 30
                             
-                            echo "Waiting for cleanup..."
-                            sleep 20
-                            
-                            echo "Deploying MySQL StatefulSet..."
+                            echo "Deploying MySQL with debug output..."
                             helm install ${HELM_RELEASE_NAME}-db ${HELM_CHART_PATH} \
                                 --namespace ecommerce \
                                 --create-namespace \
                                 --set backend.enabled=false \
-                                --set mysql.storageClassName=gp2 \
+                                --debug \
                                 --wait \
-                                --timeout 5m
+                                --timeout 10m || {
+                                    echo "MySQL deployment failed. Checking resources..."
+                                    kubectl get pods -n ecommerce
+                                    kubectl describe pods -n ecommerce
+                                    kubectl get pvc,pv -n ecommerce
+                                    exit 1
+                                }
                             
                             echo "Waiting for MySQL to be ready..."
                             kubectl wait --for=condition=ready pod -l app=ecommerce-db -n ecommerce --timeout=300s
+                        """
+                    }
+                }
+            }
+        }
+        
+        stage('Deploy Backend') {
+            steps {
+                withAWS(credentials: 'aws-access', region: env.AWS_DEFAULT_REGION) {
+                    script {
+                        sh """
+                            echo "Deploying backend with image: ${IMAGE_TAG}"
                             
-                            echo "Deploying backend with image tag: ${IMAGE_TAG}"
-                            helm install ${HELM_RELEASE_NAME}-backend ${HELM_CHART_PATH} \
+                            helm upgrade --install ${HELM_RELEASE_NAME}-backend ${HELM_CHART_PATH} \
                                 --namespace ecommerce \
                                 --set database.enabled=false \
                                 --set backend.image.repository=${REPOSITORY_URI} \
@@ -101,20 +109,12 @@ pipeline {
                                 --wait \
                                 --timeout 5m
                             
-                            echo "Verifying deployments..."
-                            kubectl get all -n ecommerce
+                            echo "Waiting for backend deployment..."
+                            kubectl rollout status deployment/${HELM_RELEASE_NAME}-backend -n ecommerce --timeout=300s
                             
                             echo "Checking backend pods..."
-                            sleep 30
-                            kubectl logs -l app=ecommerce-backend -n ecommerce --tail=100 || true
-                            
-                            # Verify backend deployment status
-                            READY=\$(kubectl get deployment -n ecommerce -l app=ecommerce-backend -o jsonpath='{.items[0].status.readyReplicas}')
-                            if [ "\$READY" != "2" ]; then
-                                echo "Backend deployment not ready. Checking pod status..."
-                                kubectl describe pods -n ecommerce -l app=ecommerce-backend
-                                exit 1
-                            fi
+                            kubectl get pods -n ecommerce -l app=ecommerce-backend
+                            kubectl logs -l app=ecommerce-backend -n ecommerce --tail=100
                         """
                     }
                 }
@@ -126,14 +126,11 @@ pipeline {
                 withAWS(credentials: 'aws-access', region: env.AWS_DEFAULT_REGION) {
                     script {
                         sh """
-                            echo "Verifying services..."
-                            kubectl get svc -n ecommerce
+                            echo "Verifying all resources..."
+                            kubectl get all -n ecommerce
                             
-                            echo "Checking backend endpoint..."
-                            BACKEND_URL=\$(kubectl get svc -n ecommerce ${HELM_RELEASE_NAME}-backend -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
-                            if [ ! -z "\$BACKEND_URL" ]; then
-                                echo "Backend URL: http://\$BACKEND_URL:5000"
-                            fi
+                            echo "Checking service endpoints..."
+                            kubectl get svc -n ecommerce
                         """
                     }
                 }
@@ -147,7 +144,6 @@ pipeline {
                 sh """
                     docker compose -f docker/docker-compose.yaml down || true
                     docker rmi ${REPOSITORY_URI}:backend-${IMAGE_TAG} || true
-                    docker rmi ${REPOSITORY_URI}:backend-latest || true
                     docker rmi ecommerce-app-backend:${IMAGE_TAG} || true
                 """
             }
@@ -162,14 +158,9 @@ pipeline {
                     echo "=== Deployment Failure Debug Info ==="
                     aws eks update-kubeconfig --name demo-eks-cluster --region ${AWS_DEFAULT_REGION}
                     echo "Failed image tag: ${IMAGE_TAG}"
-                    echo "Pod Status:"
-                    kubectl get pods -n ecommerce || true
-                    echo "\\nPod Details:"
-                    kubectl describe pods -n ecommerce -l app=ecommerce-backend || true
-                    echo "\\nPod Logs:"
+                    kubectl get all -n ecommerce || true
+                    kubectl describe pods -n ecommerce || true
                     kubectl logs -l app=ecommerce-backend -n ecommerce --tail=100 || true
-                    echo "\\nDeployment Status:"
-                    kubectl describe deployment -n ecommerce -l app=ecommerce-backend || true
                 """
             }
         }
