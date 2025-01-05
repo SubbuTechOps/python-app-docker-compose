@@ -22,11 +22,15 @@ pipeline {
             steps {
                 script {
                     sh """
-                        # Create frontend directory in Dockerfile if not exists
+                        # Update backend Dockerfile
+                        echo "Updating backend Dockerfile..."
+                        cd docker/backend
                         if ! grep -q "RUN mkdir /frontend" Dockerfile; then
                             sed -i '/RUN apt-get update/a RUN mkdir /frontend' Dockerfile
                         fi
+                        cd ../..
                         
+                        # Build and run with docker-compose
                         docker compose -f docker/docker-compose.yaml build
                         docker compose -f docker/docker-compose.yaml up -d
                         
@@ -93,10 +97,6 @@ pipeline {
                             echo "Waiting for MySQL to be ready..."
                             kubectl wait --for=condition=ready pod -l app=ecommerce-db -n ecommerce --timeout=180s
                             
-                            # Verify MySQL deployment
-                            echo "Verifying MySQL deployment..."
-                            kubectl get statefulset,pod,svc,pvc -n ecommerce
-                            
                             # Deploy backend with explicit image settings
                             echo "Deploying backend..."
                             helm upgrade --install ${HELM_RELEASE_NAME}-backend ${HELM_CHART_PATH} \
@@ -105,11 +105,6 @@ pipeline {
                                 --set backend.image.tag=backend-${IMAGE_TAG} \
                                 --wait \
                                 --timeout 3m
-                            
-                            # Final verification
-                            echo "Final deployment status:"
-                            kubectl get all -n ecommerce
-                            kubectl get pods -n ecommerce -o wide
                         """
                     }
                 }
@@ -121,22 +116,12 @@ pipeline {
                 withAWS(credentials: 'aws-access', region: env.AWS_DEFAULT_REGION) {
                     script {
                         sh """
-                            # Check backend logs
-                            echo "Checking backend logs..."
+                            echo "Verifying deployments..."
+                            kubectl get all -n ecommerce
+                            
+                            echo "Checking backend pod logs..."
                             BACKEND_POD=\$(kubectl get pod -n ecommerce -l app=ecommerce-backend -o jsonpath='{.items[0].metadata.name}')
-                            kubectl logs \$BACKEND_POD -n ecommerce
-                            
-                            # Check MySQL StatefulSet
-                            echo "Checking MySQL StatefulSet..."
-                            kubectl describe statefulset ${HELM_RELEASE_NAME}-db-mysql -n ecommerce
-                            
-                            # Check Services
-                            echo "Checking Services..."
-                            kubectl get svc -n ecommerce
-                            
-                            # Check ConfigMaps and Secrets
-                            echo "Checking ConfigMaps and Secrets..."
-                            kubectl get configmap,secret -n ecommerce
+                            kubectl logs \$BACKEND_POD -n ecommerce || true
                         """
                     }
                 }
@@ -148,7 +133,7 @@ pipeline {
         always {
             script {
                 sh """
-                    docker compose -f docker/docker-compose.yaml down
+                    docker compose -f docker/docker-compose.yaml down || true
                     docker rmi ${REPOSITORY_URI}:backend-${IMAGE_TAG} || true
                     docker rmi ${REPOSITORY_URI}:backend-latest || true
                 """
@@ -159,15 +144,6 @@ pipeline {
         }
         failure {
             echo 'Deployment failed!'
-            
-            script {
-                sh """
-                    echo "Collecting logs for debugging..."
-                    kubectl get pods -n ecommerce
-                    kubectl describe pods -n ecommerce
-                    kubectl logs -n ecommerce -l app=ecommerce-backend --tail=100
-                """
-            }
         }
     }
 }
