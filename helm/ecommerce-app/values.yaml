@@ -1,9 +1,11 @@
 backend:
+  name: ecommerce-backend          # Added for clarity and uniqueness
   image:
     repository: 017820683847.dkr.ecr.us-east-1.amazonaws.com/ecommerce-app
     tag: backend-18
   replicas: 2
   service:
+    name: ecommerce-backend-svc   # Unique service name
     type: LoadBalancer
     port: 5000
   resources:
@@ -13,31 +15,32 @@ backend:
     requests:
       cpu: 400m          # Minimum CPU request per pod
       memory: 512Mi      # Minimum memory request per pod
-  enabled: true          # Added to control backend deployment
+  enabled: true            # Enable backend deployment
 
 mysql:
-  name: ecommerce-db
+  name: ecommerce-db               # Unique name for MySQL StatefulSet
   image:
     repository: mysql
     tag: "8.0"
   service:
+    name: ecommerce-db-svc         # Unique service name
     port: 3306
   storage:
-    size: 10Gi
-    storageClassName: ebs-sc  # Ensures dynamic provisioning using the correct StorageClass
+    size: 10Gi                     # Persistent storage size
+    storageClassName: ebs-sc       # StorageClass for dynamic provisioning
   resources:
     limits:
-      cpu: 1000m         # Reserve 1 full CPU core
-      memory: 2Gi        # Allocate 2 GiB of memory
+      cpu: 1000m                   # Reserve 1 full CPU core
+      memory: 2Gi                  # Allocate 2 GiB of memory
     requests:
-      cpu: 500m          # Minimum CPU request for stable performance
-      memory: 1Gi        # Minimum memory request
-  enabled: true          # Added to control MySQL deployment
+      cpu: 500m                    # Minimum CPU request for stable performance
+      memory: 1Gi                  # Minimum memory request
+  enabled: true                    # Enable MySQL deployment
 
 config:
-  flaskDebug: "true"
-  sessionType: "filesystem"
-  sessionFileDir: "/tmp/flask_sessions"
+  flaskDebug: "true"               # Flask debug mode
+  sessionType: "filesystem"        # Flask session storage type
+  sessionFileDir: "/tmp/flask_sessions"  # Session storage directory
 
 secrets:
   mysqlRootPassword: admin@1234
@@ -45,3 +48,4 @@ secrets:
   mysqlPassword: admin@1234
   mysqlDatabase: ecommerce
   flaskSecretKey: "ecommerce_app_secret_key_2024_secure_shopping"
+
