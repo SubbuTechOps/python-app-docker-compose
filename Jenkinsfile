@@ -76,32 +76,33 @@ pipeline {
                 }
             }
         }
+    stage('Deploy Backend') {
+        steps {
+            withAWS(credentials: 'aws-access', region: env.AWS_DEFAULT_REGION) {
+                script {
+                    sh """
+                        echo "Cleaning up conflicting resources..."
+                        kubectl delete deployment ecommerce-backend -n ecommerce || true
+                        kubectl delete svc ecommerce-backend -n ecommerce || true
 
-        stage('Deploy Backend') {
-            steps {
-                withAWS(credentials: 'aws-access', region: env.AWS_DEFAULT_REGION) {
-                    script {
-                        sh """
-                            echo "Deploying Backend using Helm..."
-                            helm upgrade --install ecommerce-backend ./helm/ecommerce-app \
-                                --namespace ecommerce \
-                                --set mysql.enabled=false \
-                                --set backend.image.repository=${REPOSITORY_URI} \
-                                --set backend.image.tag=backend-${IMAGE_TAG} \
-                                --debug \
-                                --wait \
-                                --timeout 5m
+                        echo "Deploying backend using Helm..."
+                        helm upgrade --install ecommerce-backend ./helm/ecommerce-app \
+                            --namespace ecommerce \
+                            --set mysql.enabled=false \
+                            --set backend.image.repository=${REPOSITORY_URI} \
+                            --set backend.image.tag=backend-${IMAGE_TAG} \
+                            --debug --wait --timeout 5m
 
-                            echo "Verifying Backend Deployment..."
-                            kubectl rollout status deployment/ecommerce-backend -n ecommerce --timeout=300s
-                            kubectl get pods -n ecommerce
-                            kubectl logs -l app=ecommerce-backend -n ecommerce --tail=100
-                        """
-                    }
+                        echo "Verifying deployment..."
+                        kubectl rollout status deployment/ecommerce-backend -n ecommerce --timeout=300s
+                        kubectl get pods -n ecommerce
+                        kubectl logs -l app=ecommerce-backend -n ecommerce --tail=100
+                    """
                 }
             }
         }
-    }
+    }     
+}
 
     post {
         always {

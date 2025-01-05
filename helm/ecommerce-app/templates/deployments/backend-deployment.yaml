@@ -2,6 +2,11 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ .Values.backend.name }}
+  labels:
+    app: {{ .Values.backend.name }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    release: {{ .Release.Name }}
+    heritage: Helm
 spec:
   replicas: {{ .Values.backend.replicas }}
   selector:
@@ -11,6 +16,7 @@ spec:
     metadata:
       labels:
         app: {{ .Values.backend.name }}
+        release: {{ .Release.Name }}
     spec:
       containers:
         - name: backend
@@ -24,8 +30,9 @@ spec:
                 name: {{ .Release.Name }}-backend-secret
           env:
             - name: DB_HOST
-              value: {{ .Values.mysql.name }}
+              value: {{ .Release.Name }}-{{ .Values.mysql.name }}
             - name: DB_PORT
               value: "{{ .Values.mysql.service.port }}"
           resources:
             {{- toYaml .Values.backend.resources | nindent 12 }}
+      restartPolicy: Always
