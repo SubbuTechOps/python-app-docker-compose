@@ -22,6 +22,11 @@ pipeline {
             steps {
                 script {
                     sh """
+                        # Create frontend directory in Dockerfile if not exists
+                        if ! grep -q "RUN mkdir /frontend" Dockerfile; then
+                            sed -i '/RUN apt-get update/a RUN mkdir /frontend' Dockerfile
+                        fi
+                        
                         docker compose -f docker/docker-compose.yaml build
                         docker compose -f docker/docker-compose.yaml up -d
                         
@@ -44,6 +49,10 @@ pipeline {
                             
                             docker tag ecommerce-app-backend:latest ${REPOSITORY_URI}:backend-${IMAGE_TAG}
                             docker push ${REPOSITORY_URI}:backend-${IMAGE_TAG}
+                            
+                            # Tag as latest for reference
+                            docker tag ecommerce-app-backend:latest ${REPOSITORY_URI}:backend-latest
+                            docker push ${REPOSITORY_URI}:backend-latest
                         """
                     }
                 }
@@ -57,37 +66,50 @@ pipeline {
                         sh """
                             aws eks update-kubeconfig --name demo-eks-cluster --region ${AWS_DEFAULT_REGION}
                             
-                            # Check storage class and PVC status
+                            # Check cluster and storage status
+                            echo "Checking cluster and storage status..."
+                            kubectl get nodes
                             kubectl get sc
-                            kubectl get pvc -n ecommerce
-
+                            kubectl get pvc -n ecommerce || true
+                            
+                            # Clean up any failed deployments
+                            echo "Cleaning up any failed deployments..."
+                            helm uninstall ${HELM_RELEASE_NAME}-db -n ecommerce || true
+                            helm uninstall ${HELM_RELEASE_NAME}-backend -n ecommerce || true
+                            kubectl delete pvc --all -n ecommerce || true
+                            
+                            echo "Waiting for cleanup to complete..."
+                            sleep 10
+                            
                             # Deploy MySQL StatefulSet
+                            echo "Deploying MySQL StatefulSet..."
                             helm upgrade --install ${HELM_RELEASE_NAME}-db ${HELM_CHART_PATH} \
                                 --namespace ecommerce \
                                 --create-namespace \
-                                --wait --timeout 5m
+                                --wait \
+                                --timeout 3m
                             
-                            # Check StatefulSet status
-                            echo "Checking MySQL StatefulSet status..."
-                            kubectl get statefulset -n ecommerce
+                            # Wait for MySQL to be ready
+                            echo "Waiting for MySQL to be ready..."
+                            kubectl wait --for=condition=ready pod -l app=ecommerce-db -n ecommerce --timeout=180s
                             
-                            # Wait for StatefulSet to be ready
-                            echo "Waiting for MySQL StatefulSet to be ready..."
-                            kubectl wait --for=condition=ready pod ${HELM_RELEASE_NAME}-mysql-0 -n ecommerce --timeout=600s
-                            
-                            # Verify PVC and PV
-                            echo "Verifying PVC and PV status..."
-                            kubectl get pvc,pv -n ecommerce
+                            # Verify MySQL deployment
+                            echo "Verifying MySQL deployment..."
+                            kubectl get statefulset,pod,svc,pvc -n ecommerce
                             
                             # Deploy backend with explicit image settings
+                            echo "Deploying backend..."
                             helm upgrade --install ${HELM_RELEASE_NAME}-backend ${HELM_CHART_PATH} \
                                 --namespace ecommerce \
                                 --set backend.image.repository=${REPOSITORY_URI} \
                                 --set backend.image.tag=backend-${IMAGE_TAG} \
-                                --wait --timeout 5m
+                                --wait \
+                                --timeout 3m
                             
-                            # Verify all deployments
+                            # Final verification
+                            echo "Final deployment status:"
                             kubectl get all -n ecommerce
+                            kubectl get pods -n ecommerce -o wide
                         """
                     }
                 }
@@ -99,16 +121,22 @@ pipeline {
                 withAWS(credentials: 'aws-access', region: env.AWS_DEFAULT_REGION) {
                     script {
                         sh """
-                            # Check StatefulSet status
-                            kubectl get statefulset -n ecommerce
-                            kubectl describe statefulset ${HELM_RELEASE_NAME}-mysql -n ecommerce
+                            # Check backend logs
+                            echo "Checking backend logs..."
+                            BACKEND_POD=\$(kubectl get pod -n ecommerce -l app=ecommerce-backend -o jsonpath='{.items[0].metadata.name}')
+                            kubectl logs \$BACKEND_POD -n ecommerce
                             
-                            # Check backend deployment
-                            kubectl get pods -n ecommerce | grep 'ecommerce-app-backend'
-                            kubectl describe pod -n ecommerce -l app=ecommerce-app-backend
+                            # Check MySQL StatefulSet
+                            echo "Checking MySQL StatefulSet..."
+                            kubectl describe statefulset ${HELM_RELEASE_NAME}-db-mysql -n ecommerce
                             
-                            # Check PVC and PV status
-                            kubectl get pvc,pv -n ecommerce
+                            # Check Services
+                            echo "Checking Services..."
+                            kubectl get svc -n ecommerce
+                            
+                            # Check ConfigMaps and Secrets
+                            echo "Checking ConfigMaps and Secrets..."
+                            kubectl get configmap,secret -n ecommerce
                         """
                     }
                 }
@@ -122,6 +150,7 @@ pipeline {
                 sh """
                     docker compose -f docker/docker-compose.yaml down
                     docker rmi ${REPOSITORY_URI}:backend-${IMAGE_TAG} || true
+                    docker rmi ${REPOSITORY_URI}:backend-latest || true
                 """
             }
         }
@@ -130,6 +159,15 @@ pipeline {
         }
         failure {
             echo 'Deployment failed!'
+            
+            script {
+                sh """
+                    echo "Collecting logs for debugging..."
+                    kubectl get pods -n ecommerce
+                    kubectl describe pods -n ecommerce
+                    kubectl logs -n ecommerce -l app=ecommerce-backend --tail=100
+                """
+            }
         }
     }
 }
