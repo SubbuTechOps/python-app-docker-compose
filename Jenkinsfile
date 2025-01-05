@@ -65,7 +65,7 @@ pipeline {
                             helm upgrade --install ${HELM_RELEASE_NAME}-db ${HELM_CHART_PATH} \
                                 --namespace ecommerce \
                                 --create-namespace \
-                                --wait --timeout 15m
+                                --wait --timeout 5m
                             
                             # Check StatefulSet status
                             echo "Checking MySQL StatefulSet status..."
@@ -84,7 +84,7 @@ pipeline {
                                 --namespace ecommerce \
                                 --set backend.image.repository=${REPOSITORY_URI} \
                                 --set backend.image.tag=backend-${IMAGE_TAG} \
-                                --wait --timeout 15m
+                                --wait --timeout 5m
                             
                             # Verify all deployments
                             kubectl get all -n ecommerce
