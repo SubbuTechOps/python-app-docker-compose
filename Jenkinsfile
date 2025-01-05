@@ -49,13 +49,12 @@ pipeline {
                 }
             }
         }
-        
         stage('Deploy to EKS') {
             steps {
                 withAWS(credentials: 'aws-access', region: env.AWS_DEFAULT_REGION) {
                     script {
                         sh """
-                            aws eks update-kubeconfig --name ecommerce-cluster --region ${AWS_DEFAULT_REGION}
+                            aws eks update-kubeconfig --name demo-eks-cluster --region ${AWS_DEFAULT_REGION}
                             
                             helm upgrade --install ${HELM_RELEASE_NAME}-db ${HELM_CHART_PATH} \
                                 --namespace ecommerce \
