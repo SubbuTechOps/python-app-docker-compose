@@ -1,0 +1,12 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: ebs-sc  # Ensure this matches {{ .Values.mysql.storageClassName }}
+provisioner: ebs.csi.aws.com
+volumeBindingMode: WaitForFirstConsumer
+parameters:
+  type: gp3           # EBS volume type (gp2, gp3, io1, etc.)
+  fsType: ext4        # Filesystem type
+  encrypted: "true"   # Enable encryption for volumes
+  throughput: "125"   # (Optional) Throughput in MiB/s for gp3
+

@@ -1,11 +1,13 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: {{ .Release.Name }}-mysql-pvc
+  name: test-ebs-pvc
+  namespace: default
 spec:
   accessModes:
     - ReadWriteOnce
-  storageClassName: ebs-sc
   resources:
     requests:
-      storage: {{ .Values.mysql.storage.size }}
+      storage: 1Gi
+  storageClassName: ebs-sc
+

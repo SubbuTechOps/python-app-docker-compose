@@ -1,5 +1,5 @@
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: {{ .Release.Name }}-mysql
 spec:
@@ -7,6 +7,7 @@ spec:
   selector:
     matchLabels:
       app: {{ .Values.mysql.name }}
+  serviceName: {{ .Release.Name }}-mysql-service
   template:
     metadata:
       labels:
@@ -25,7 +26,13 @@ spec:
               mountPath: /var/lib/mysql
           resources:
             {{- toYaml .Values.mysql.resources | nindent 12 }}
-      volumes:
-        - name: mysql-persistent-storage
-          persistentVolumeClaim:
-            claimName: {{ .Release.Name }}-mysql-pvc
+  volumeClaimTemplates:
+    - metadata:
+        name: mysql-persistent-storage
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: {{ .Values.mysql.storage.size }}
+        storageClassName: {{ .Values.mysql.storageClassName }}
