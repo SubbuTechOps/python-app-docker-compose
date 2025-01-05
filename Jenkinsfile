@@ -24,11 +24,9 @@ pipeline {
                     sh """
                         # Update backend Dockerfile
                         echo "Updating backend Dockerfile..."
-                        cd docker/backend
-                        if ! grep -q "RUN mkdir /frontend" Dockerfile; then
-                            sed -i '/RUN apt-get update/a RUN mkdir /frontend' Dockerfile
+                        if ! grep -q "RUN mkdir /frontend" backend/Dockerfile.backend; then
+                            sed -i '/RUN apt-get update/a RUN mkdir /frontend' backend/Dockerfile.backend
                         fi
-                        cd ../..
                         
                         # Build and run with docker-compose
                         docker compose -f docker/docker-compose.yaml build
@@ -74,16 +72,6 @@ pipeline {
                             echo "Checking cluster and storage status..."
                             kubectl get nodes
                             kubectl get sc
-                            kubectl get pvc -n ecommerce || true
-                            
-                            # Clean up any failed deployments
-                            echo "Cleaning up any failed deployments..."
-                            helm uninstall ${HELM_RELEASE_NAME}-db -n ecommerce || true
-                            helm uninstall ${HELM_RELEASE_NAME}-backend -n ecommerce || true
-                            kubectl delete pvc --all -n ecommerce || true
-                            
-                            echo "Waiting for cleanup to complete..."
-                            sleep 10
                             
                             # Deploy MySQL StatefulSet
                             echo "Deploying MySQL StatefulSet..."
