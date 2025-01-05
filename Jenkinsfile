@@ -28,7 +28,6 @@ pipeline {
                         echo "Waiting for containers to be healthy..."
                         sleep 30
                         
-                        # Use correct container names
                         docker ps -a | grep 'ecommerce-db'
                         docker ps -a | grep 'ecommerce-app-backend'
                     """
@@ -38,12 +37,11 @@ pipeline {
         
         stage('Tag and Push to ECR') {
             steps {
-                withCredentials([string(credentialsId: 'aws-access', variable: 'AWS_ACCESS_KEY')]) {
+                withAWS(credentials: 'aws-access', region: "${AWS_DEFAULT_REGION}") {
                     script {
                         sh """
                             aws ecr get-login-password --region ${AWS_DEFAULT_REGION} | docker login --username AWS --password-stdin ${REPOSITORY_URI}
                             
-                            # Use correct container/image names
                             docker tag ecommerce-app-backend:latest ${REPOSITORY_URI}:backend-${IMAGE_TAG}
                             docker push ${REPOSITORY_URI}:backend-${IMAGE_TAG}
                         """
@@ -54,7 +52,7 @@ pipeline {
         
         stage('Deploy to EKS') {
             steps {
-                withCredentials([string(credentialsId: 'aws-access', variable: 'AWS_ACCESS_KEY')]) {
+                withAWS(credentials: 'aws-access', region: "${AWS_DEFAULT_REGION}") {
                     script {
                         sh """
                             aws eks update-kubeconfig --name ecommerce-cluster --region ${AWS_DEFAULT_REGION}
@@ -79,7 +77,7 @@ pipeline {
         
         stage('Verify Deployment') {
             steps {
-                withCredentials([string(credentialsId: 'aws-access', variable: 'AWS_ACCESS_KEY')]) {
+                withAWS(credentials: 'aws-access', region: "${AWS_DEFAULT_REGION}") {
                     script {
                         sh """
                             kubectl get pods -n ecommerce | grep 'ecommerce-db'
