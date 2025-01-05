@@ -9,10 +9,10 @@ backend:
     port: 5000
   resources:
     limits:
-      cpu: 500m
-      memory: 512Mi
+      cpu: 300m
+      memory: 384Mi
     requests:
-      cpu: 250m
+      cpu: 200m
       memory: 256Mi
 
 mysql:
