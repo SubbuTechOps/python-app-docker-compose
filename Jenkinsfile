@@ -55,7 +55,7 @@ pipeline {
                         sh """
                             aws eks update-kubeconfig --name demo-eks-cluster --region ${AWS_DEFAULT_REGION}
 
-                            echo "Cleaning up existing resources..."
+                            echo "Cleaning up existing database resources..."
                             helm uninstall ecommerce-db -n ecommerce || true
 
                             echo "Waiting for cleanup..."
@@ -84,7 +84,7 @@ pipeline {
                 withAWS(credentials: 'aws-access', region: env.AWS_DEFAULT_REGION) {
                     script {
                         sh """
-                            echo "Cleaning up old backend deployment..."
+                            echo "Cleaning up old backend resources..."
                             helm uninstall ecommerce-backend -n ecommerce || true
 
                             sleep 10

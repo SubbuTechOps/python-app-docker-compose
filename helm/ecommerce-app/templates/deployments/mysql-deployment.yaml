@@ -2,6 +2,9 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: {{ .Release.Name }}-mysql
+  labels:
+    app: {{ .Values.mysql.name }}
+    release: {{ .Release.Name }}
 spec:
   replicas: 1
   selector:
@@ -12,6 +15,7 @@ spec:
     metadata:
       labels:
         app: {{ .Values.mysql.name }}
+        release: {{ .Release.Name }}
     spec:
       containers:
         - name: mysql
@@ -29,10 +33,14 @@ spec:
   volumeClaimTemplates:
     - metadata:
         name: mysql-persistent-storage
+        labels:
+          app: {{ .Values.mysql.name }}
       spec:
         accessModes:
           - ReadWriteOnce
         resources:
           requests:
             storage: {{ .Values.mysql.storage.size }}
+        {{- if .Values.mysql.storageClassName }}
         storageClassName: {{ .Values.mysql.storageClassName }}
+        {{- end }}

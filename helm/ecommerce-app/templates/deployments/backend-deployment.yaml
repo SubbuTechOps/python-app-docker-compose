@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Release.Name }}
+  name: {{ .Values.backend.name }}
 spec:
   replicas: {{ .Values.backend.replicas }}
   selector:
@@ -16,7 +16,7 @@ spec:
         - name: backend
           image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
           ports:
-            - containerPort: 5000
+            - containerPort: {{ .Values.backend.service.port }}
           envFrom:
             - configMapRef:
                 name: {{ .Release.Name }}-backend-config
@@ -24,8 +24,8 @@ spec:
                 name: {{ .Release.Name }}-backend-secret
           env:
             - name: DB_HOST
-              value: {{ .Release.Name }}-mysql
+              value: {{ .Values.mysql.name }}
             - name: DB_PORT
-              value: "3306"
+              value: "{{ .Values.mysql.service.port }}"
           resources:
             {{- toYaml .Values.backend.resources | nindent 12 }}
