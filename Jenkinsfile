@@ -37,7 +37,7 @@ pipeline {
         
         stage('Tag and Push to ECR') {
             steps {
-                withAWS(credentials: 'aws-access', region: "${AWS_DEFAULT_REGION}") {
+                withAWS(credentials: 'aws-access', region: env.AWS_DEFAULT_REGION) {
                     script {
                         sh """
                             aws ecr get-login-password --region ${AWS_DEFAULT_REGION} | docker login --username AWS --password-stdin ${REPOSITORY_URI}
@@ -52,7 +52,7 @@ pipeline {
         
         stage('Deploy to EKS') {
             steps {
-                withAWS(credentials: 'aws-access', region: "${AWS_DEFAULT_REGION}") {
+                withAWS(credentials: 'aws-access', region: env.AWS_DEFAULT_REGION) {
                     script {
                         sh """
                             aws eks update-kubeconfig --name ecommerce-cluster --region ${AWS_DEFAULT_REGION}
@@ -77,7 +77,7 @@ pipeline {
         
         stage('Verify Deployment') {
             steps {
-                withAWS(credentials: 'aws-access', region: "${AWS_DEFAULT_REGION}") {
+                withAWS(credentials: 'aws-access', region: env.AWS_DEFAULT_REGION) {
                     script {
                         sh """
                             kubectl get pods -n ecommerce | grep 'ecommerce-db'
