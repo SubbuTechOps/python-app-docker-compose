@@ -18,6 +18,7 @@ pipeline {
                         echo "Building image with tag: ${IMAGE_TAG}"
                         docker build -t ecommerce-app-backend:${IMAGE_TAG} -f backend/Dockerfile.backend .
 
+                        echo "Starting containers for local testing..."
                         docker compose -f docker/docker-compose.yaml up -d
 
                         echo "Waiting for containers to be healthy..."
@@ -36,8 +37,10 @@ pipeline {
                 withAWS(credentials: 'aws-access', region: env.AWS_DEFAULT_REGION) {
                     script {
                         sh """
+                            echo "Logging in to ECR..."
                             aws ecr get-login-password --region ${AWS_DEFAULT_REGION} | docker login --username AWS --password-stdin ${REPOSITORY_URI}
 
+                            echo "Tagging and pushing the image to ECR..."
                             docker tag ecommerce-app-backend:${IMAGE_TAG} ${REPOSITORY_URI}:backend-${IMAGE_TAG}
                             docker push ${REPOSITORY_URI}:backend-${IMAGE_TAG}
 
@@ -53,15 +56,10 @@ pipeline {
                 withAWS(credentials: 'aws-access', region: env.AWS_DEFAULT_REGION) {
                     script {
                         sh """
+                            echo "Updating kubeconfig for EKS..."
                             aws eks update-kubeconfig --name demo-eks-cluster --region ${AWS_DEFAULT_REGION}
 
-                            echo "Cleaning up existing database resources..."
-                            helm uninstall ecommerce-db -n ecommerce || true
-
-                            echo "Waiting for cleanup..."
-                            sleep 30
-
-                            echo "Deploying MySQL..."
+                            echo "Deploying MySQL using Helm..."
                             helm upgrade --install ecommerce-db ./helm/ecommerce-app \
                                 --namespace ecommerce \
                                 --create-namespace \
@@ -71,7 +69,7 @@ pipeline {
                                 --wait \
                                 --timeout 5m
 
-                            kubectl wait --for=condition=ready pod -l app=ecommerce-db -n ecommerce --timeout=300s
+                            echo "MySQL Deployment Complete!"
                             kubectl get pods -n ecommerce
                         """
                     }
@@ -84,12 +82,7 @@ pipeline {
                 withAWS(credentials: 'aws-access', region: env.AWS_DEFAULT_REGION) {
                     script {
                         sh """
-                            echo "Cleaning up old backend resources..."
-                            helm uninstall ecommerce-backend -n ecommerce || true
-
-                            sleep 10
-
-                            echo "Deploying backend with image: ${IMAGE_TAG}"
+                            echo "Deploying Backend using Helm..."
                             helm upgrade --install ecommerce-backend ./helm/ecommerce-app \
                                 --namespace ecommerce \
                                 --set mysql.enabled=false \
@@ -99,6 +92,7 @@ pipeline {
                                 --wait \
                                 --timeout 5m
 
+                            echo "Verifying Backend Deployment..."
                             kubectl rollout status deployment/ecommerce-backend -n ecommerce --timeout=300s
                             kubectl get pods -n ecommerce
                             kubectl logs -l app=ecommerce-backend -n ecommerce --tail=100
