@@ -1,7 +1,7 @@
 backend:
   name: ecommerce-backend
   image:
-    repository: your-account-id.dkr.ecr.your-region.amazonaws.com/ecommerce-app
+    repository: 017820683847.dkr.ecr.us-east-1.amazonaws.com/ecommerce-app
     tag: backend-v1
   replicas: 2
   service:
