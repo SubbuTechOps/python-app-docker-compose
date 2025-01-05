@@ -49,6 +49,7 @@ pipeline {
                 }
             }
         }
+        
         stage('Deploy to EKS') {
             steps {
                 withAWS(credentials: 'aws-access', region: env.AWS_DEFAULT_REGION) {
@@ -56,25 +57,37 @@ pipeline {
                         sh """
                             aws eks update-kubeconfig --name demo-eks-cluster --region ${AWS_DEFAULT_REGION}
                             
-                            # Deploy MySQL first - using values.yaml defaults
+                            # Check PV status before deployment
+                            kubectl get pv,pvc -n ecommerce
+
+                            # Deploy MySQL with increased timeout
                             helm upgrade --install ${HELM_RELEASE_NAME}-db ${HELM_CHART_PATH} \
                                 --namespace ecommerce \
                                 --create-namespace \
-                                --wait --timeout 10m
+                                --wait --timeout 15m
+                            
+                            # Check pod status
+                            echo "Checking MySQL pod status..."
+                            kubectl get pods -n ecommerce
                             
                             # Wait for MySQL to be ready
-                            sleep 30
+                            echo "Waiting for MySQL to be ready..."
+                            kubectl wait --for=condition=ready pod -l app=ecommerce-db -n ecommerce --timeout=600s
                             
-                            # Deploy backend - only override the dynamic image tag
+                            # Deploy backend
                             helm upgrade --install ${HELM_RELEASE_NAME}-backend ${HELM_CHART_PATH} \
                                 --namespace ecommerce \
                                 --set backend.image.tag=backend-${IMAGE_TAG} \
-                                --wait --timeout 10m
+                                --wait --timeout 15m
+                            
+                            # Verify all deployments
+                            kubectl get all -n ecommerce
                         """
                     }
                 }
             }
         }
+
         stage('Verify Deployment') {
             steps {
                 withAWS(credentials: 'aws-access', region: env.AWS_DEFAULT_REGION) {
