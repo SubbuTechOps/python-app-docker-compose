@@ -29,14 +29,28 @@ spec:
             - name: mysql-persistent-storage
               mountPath: /var/lib/mysql
           readinessProbe:
-            tcpSocket:
-              port: 3306
+            exec:
+              command: ["mysqladmin", "ping", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
             initialDelaySeconds: 30
             periodSeconds: 10
           livenessProbe:
-            tcpSocket:
-              port: 3306
+            exec:
+              command: ["mysqladmin", "ping", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
             initialDelaySeconds: 60
             periodSeconds: 20
+          startupProbe:
+            exec:
+              command: ["mysqladmin", "ping", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+            failureThreshold: 30
+            periodSeconds: 10
+          lifecycle:
+            postStart:
+              exec:
+                command: 
+                  - bash
+                  - -c
+                  - |
+                    mysql -u root -p${MYSQL_ROOT_PASSWORD} -e "CREATE DATABASE IF NOT EXISTS ${MYSQL_DATABASE};"
+                    mysql -u root -p${MYSQL_ROOT_PASSWORD} -e "GRANT ALL PRIVILEGES ON ${MYSQL_DATABASE}.* TO '${MYSQL_USER}'@'%';"
           resources:
             {{- toYaml .Values.mysql.resources | nindent 12 }}
