@@ -59,9 +59,10 @@ pipeline {
                                --set backend.image.tag=backend-${IMAGE_TAG} \
                                --set backend.env.FLASK_APP=wsgi:app \
                                --wait \
-                               --timeout 5m
-                               --debug
-
+                               --timeout 10m \  # Increased timeout
+                               --set backend.env.FLASK_APP=wsgi:app \
+                               --set backend.env.FRONTEND_PATH=/app/frontend
+                               
                            # Verify deployments
                            kubectl wait --namespace ecommerce --for=condition=ready pod \
                                -l app=ecommerce-db --timeout=300s

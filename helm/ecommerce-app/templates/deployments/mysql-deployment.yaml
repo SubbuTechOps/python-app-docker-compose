@@ -2,6 +2,8 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: {{ .Release.Name }}-mysql
+  labels:
+    app: {{ .Values.mysql.name }}
 spec:
   serviceName: {{ .Release.Name }}-mysql
   replicas: 1
@@ -15,48 +17,51 @@ spec:
     spec:
       containers:
       - name: mysql
-        image: mysql:8.0
+        image: "{{ .Values.mysql.image.repository }}:{{ .Values.mysql.image.tag }}"
         env:
         - name: MYSQL_ROOT_PASSWORD
           valueFrom:
             secretKeyRef: 
-              name: {{ .Release.Name }}-mysql-secret
+              name: {{ .Release.Name }}-backend-secret  # Changed to match your secret name
               key: MYSQL_ROOT_PASSWORD
         - name: MYSQL_DATABASE
           valueFrom:
             secretKeyRef:
-              name: {{ .Release.Name }}-mysql-secret
+              name: {{ .Release.Name }}-backend-secret
               key: MYSQL_DATABASE
         - name: MYSQL_USER
           valueFrom:
             secretKeyRef:
-              name: {{ .Release.Name }}-mysql-secret
+              name: {{ .Release.Name }}-backend-secret
               key: MYSQL_USER
         - name: MYSQL_PASSWORD
           valueFrom:
             secretKeyRef:
-              name: {{ .Release.Name }}-mysql-secret
+              name: {{ .Release.Name }}-backend-secret
               key: MYSQL_PASSWORD
         ports:
-        - containerPort: 3306
+        - containerPort: {{ .Values.mysql.service.port }}
           name: mysql
         readinessProbe:
           exec:
-            command: ["mysqladmin", "ping", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
-          initialDelaySeconds: 30
-          periodSeconds: 10
+            command: 
+              - /bin/sh
+              - -c
+              - mysqladmin ping -h 127.0.0.1 -u root -p${MYSQL_ROOT_PASSWORD}
+          initialDelaySeconds: {{ .Values.mysql.probes.readiness.initialDelaySeconds }}
+          periodSeconds: {{ .Values.mysql.probes.readiness.periodSeconds }}
+          timeoutSeconds: 5
         livenessProbe:
           exec:
-            command: ["mysqladmin", "ping", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
-          initialDelaySeconds: 60
-          periodSeconds: 20
+            command:
+              - /bin/sh
+              - -c
+              - mysqladmin ping -h 127.0.0.1 -u root -p${MYSQL_ROOT_PASSWORD}
+          initialDelaySeconds: {{ .Values.mysql.probes.liveness.initialDelaySeconds }}
+          periodSeconds: {{ .Values.mysql.probes.liveness.periodSeconds }}
+          timeoutSeconds: 5
         resources:
-          limits:
-            cpu: "1"
-            memory: 2Gi
-          requests:
-            cpu: "500m"
-            memory: 1Gi
+          {{- toYaml .Values.mysql.resources | nindent 12 }}
         volumeMounts:
         - name: mysql-persistent-storage
           mountPath: /var/lib/mysql
@@ -65,7 +70,7 @@ spec:
       name: mysql-persistent-storage
     spec:
       accessModes: [ "ReadWriteOnce" ]
-      storageClassName: ebs-sc
+      storageClassName: {{ .Values.mysql.storage.storageClassName }}
       resources:
         requests:
-          storage: 10Gi
+          storage: {{ .Values.mysql.storage.size }}

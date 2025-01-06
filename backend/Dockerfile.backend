@@ -9,12 +9,12 @@ RUN apt-get update && \
     apt-get install -y curl netcat-traditional && \
     rm -rf /var/lib/apt/lists/*
 
+# Create frontend directory
+RUN mkdir -p /app/frontend
+
 # Copy the requirements file and install dependencies
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-
-# Create and copy frontend files
-COPY frontend/ /app/frontend/
 
 # Copy the backend application code
 COPY backend/ .
@@ -33,7 +33,8 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
 # Set environment variables
 ENV PYTHONPATH=/app \
     FLASK_APP=wsgi:app \
-    FLASK_DEBUG=false
+    FLASK_DEBUG=false \
+    FRONTEND_PATH=/app/frontend
 
 # Run the Flask application using Gunicorn
 CMD ["gunicorn", "--workers", "4", "--bind", "0.0.0.0:5000", "--timeout", "120", "--log-level", "info", "wsgi:app"]
