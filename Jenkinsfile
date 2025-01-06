@@ -59,7 +59,7 @@ pipeline {
                                --set backend.image.tag=backend-${IMAGE_TAG} \
                                --set backend.env.FLASK_APP=app:app \
                                --wait \
-                               --timeout 10m
+                               --timeout 5m
 
                            # Verify deployments
                            kubectl wait --namespace ecommerce --for=condition=ready pod \
