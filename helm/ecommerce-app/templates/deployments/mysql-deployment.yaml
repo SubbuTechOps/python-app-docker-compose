@@ -26,22 +26,22 @@ spec:
         - name: MYSQL_ROOT_PASSWORD
           valueFrom:
             secretKeyRef: 
-              name: {{ .Release.Name }}-backend-secret
+              name: {{ .Release.Name }}-mysql-secret
               key: MYSQL_ROOT_PASSWORD
         - name: MYSQL_DATABASE
           valueFrom:
             secretKeyRef:
-              name: {{ .Release.Name }}-backend-secret
+              name: {{ .Release.Name }}-mysql-secret
               key: MYSQL_DATABASE
         - name: MYSQL_USER
           valueFrom:
             secretKeyRef:
-              name: {{ .Release.Name }}-backend-secret
+              name: {{ .Release.Name }}-mysql-secret
               key: MYSQL_USER
         - name: MYSQL_PASSWORD
           valueFrom:
             secretKeyRef:
-              name: {{ .Release.Name }}-backend-secret
+              name: {{ .Release.Name }}-mysql-secret
               key: MYSQL_PASSWORD
         ports:
         - containerPort: {{ .Values.mysql.service.port }}
@@ -52,7 +52,7 @@ spec:
               - bash
               - -c
               - |
-                mysql -h 127.0.0.1 -u$MYSQL_USER -p$MYSQL_PASSWORD -e 'SELECT 1' $MYSQL_DATABASE
+                mysql -h 127.0.0.1 -u$MYSQL_USER -p$MYSQL_PASSWORD -e 'SELECT 1'
           initialDelaySeconds: {{ .Values.mysql.probes.readiness.initialDelaySeconds }}
           periodSeconds: {{ .Values.mysql.probes.readiness.periodSeconds }}
           timeoutSeconds: 5
@@ -94,18 +94,17 @@ spec:
                 - bash
                 - -c
                 - |
-                  # Wait for MySQL to be ready
                   for i in $(seq 1 30); do
-                    sleep 2
                     if mysqladmin ping -h 127.0.0.1 -u$MYSQL_USER -p$MYSQL_PASSWORD; then
+                      if ! mysql -h 127.0.0.1 -u$MYSQL_USER -p$MYSQL_PASSWORD -e "USE $MYSQL_DATABASE"; then
+                        mysql -h 127.0.0.1 -u$MYSQL_USER -p$MYSQL_PASSWORD -e "CREATE DATABASE IF NOT EXISTS $MYSQL_DATABASE"
+                      fi
                       break
                     fi
+                    sleep 2
                   done
-                  # Initialize database if needed
-                  if ! mysql -h 127.0.0.1 -u$MYSQL_USER -p$MYSQL_PASSWORD -e "USE $MYSQL_DATABASE"; then
-                    echo "Database initialization needed"
-                    mysql -h 127.0.0.1 -u$MYSQL_USER -p$MYSQL_PASSWORD -e "CREATE DATABASE IF NOT EXISTS $MYSQL_DATABASE"
-                  fi
+      securityContext:
+        fsGroup: 999
   volumeClaimTemplates:
   - metadata:
       name: mysql-persistent-storage
