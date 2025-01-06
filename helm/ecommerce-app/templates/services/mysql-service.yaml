@@ -1,11 +1,21 @@
+{{- if .Values.mysql.enabled }}
 apiVersion: v1
 kind: Service
 metadata:
   name: {{ .Release.Name }}-mysql
-spec:
-  selector:
+  labels:
     app: {{ .Values.mysql.name }}
+    tier: database
+    environment: {{ .Values.global.environment | default "production" }}
+spec:
+  clusterIP: None  # Headless service for StatefulSet
   ports:
     - port: {{ .Values.mysql.service.port }}
-      targetPort: 3306
-  clusterIP: None
+      targetPort: {{ .Values.mysql.service.targetPort | default 3306 }}
+      protocol: TCP
+      name: mysql
+  selector:
+    app: {{ .Values.mysql.name }}
+    tier: database
+  publishNotReadyAddresses: false
+{{- end }}

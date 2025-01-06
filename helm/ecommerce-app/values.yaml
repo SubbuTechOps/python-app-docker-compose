@@ -1,13 +1,17 @@
+# Backend Configuration
 backend:
   name: ecommerce-backend
+  enabled: true
   image:
     repository: 017820683847.dkr.ecr.us-east-1.amazonaws.com/ecommerce-app
     tag: backend-18
+    pullPolicy: Always
   replicas: 2
   service:
     name: ecommerce-backend-svc
     type: LoadBalancer
     port: 5000
+    targetPort: 5000
   resources:
     limits:
       cpu: 800m
@@ -19,25 +23,48 @@ backend:
     startup:
       failureThreshold: 30
       periodSeconds: 10
+      initialDelaySeconds: 10
+      timeoutSeconds: 5
     readiness:
       initialDelaySeconds: 20
       periodSeconds: 10
+      timeoutSeconds: 5
+      successThreshold: 1
+      failureThreshold: 3
     liveness:
       initialDelaySeconds: 30
       periodSeconds: 20
-  enabled: true
+      timeoutSeconds: 5
+      successThreshold: 1
+      failureThreshold: 3
+  deployment:
+    strategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxSurge: 1
+        maxUnavailable: 0
+    terminationGracePeriodSeconds: 60
+  initContainers:
+    mysql:
+      retryInterval: 5
+      timeout: 2
 
+# MySQL Configuration
 mysql:
   name: ecommerce-db
+  enabled: true
   image:
     repository: mysql
     tag: "8.0"
+    pullPolicy: IfNotPresent
   service:
-    name: ecommerce-mysql # Changed to match StatefulSet service name
+    name: ecommerce-mysql
     port: 3306
+    targetPort: 3306
   storage:
     size: 10Gi
     storageClassName: ebs-sc
+    accessMode: ReadWriteOnce
   resources:
     limits:
       cpu: 1000m
@@ -46,22 +73,50 @@ mysql:
       cpu: 500m
       memory: 1Gi
   probes:
+    startup:
+      failureThreshold: 30
+      periodSeconds: 10
+      initialDelaySeconds: 15
+      timeoutSeconds: 5
     readiness:
       initialDelaySeconds: 30
       periodSeconds: 10
+      timeoutSeconds: 5
+      successThreshold: 1
+      failureThreshold: 3
     liveness:
       initialDelaySeconds: 60
       periodSeconds: 20
-  enabled: true
+      timeoutSeconds: 5
+      successThreshold: 1
+      failureThreshold: 3
+  statefulset:
+    updateStrategy:
+      type: RollingUpdate
+    terminationGracePeriodSeconds: 60
+  securityContext:
+    runAsUser: 999
+    runAsGroup: 999
+    fsGroup: 999
 
+# Application Configuration
 config:
-  flaskDebug: "true"
+  flaskDebug: "false"  # Changed to false for production
   sessionType: "filesystem"
   sessionFileDir: "/tmp/flask_sessions"
+  corsEnabled: true
+  corsOrigins: "*"
+  logLevel: "INFO"
 
+# Secrets Configuration
 secrets:
   mysqlRootPassword: admin@1234
   mysqlUser: subbu
   mysqlPassword: admin@1234
   mysqlDatabase: ecommerce
   flaskSecretKey: "ecommerce_app_secret_key_2024_secure_shopping"
+
+# Global Settings
+global:
+  environment: production
+  namespace: ecommerce

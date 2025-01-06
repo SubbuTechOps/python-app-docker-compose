@@ -1,26 +1,80 @@
+{{- if .Values.backend.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ .Values.backend.name }}
   labels:
     app: {{ .Values.backend.name }}
+    tier: backend
 spec:
   replicas: {{ .Values.backend.replicas }}
   selector:
     matchLabels:
       app: {{ .Values.backend.name }}
+      tier: backend
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   template:
     metadata:
       labels:
         app: {{ .Values.backend.name }}
+        tier: backend
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmaps/backend-config.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secrets/backend-secret.yaml") . | sha256sum }}
     spec:
       initContainers:
         - name: wait-for-mysql
           image: busybox:1.28
-          command: ['sh', '-c', 'until nc -z -w5 {{ .Release.Name }}-mysql 3306; do echo "waiting for mysql"; sleep 5; done']
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for MySQL to be ready..."
+              until nc -z -w5 {{ .Release.Name }}-mysql.{{ .Release.Namespace }}.svc.cluster.local 3306; do 
+                echo "MySQL is not ready - sleeping"
+                sleep 2
+              done
+              echo "MySQL is ready!"
+        - name: check-db-connection
+          image: mysql:8.0
+          command:
+            - sh
+            - -c
+            - |
+              echo "Verifying database connection and schema..."
+              until mysql -h{{ .Release.Name }}-mysql.{{ .Release.Namespace }}.svc.cluster.local \
+                         -u${MYSQL_USER} \
+                         -p${MYSQL_PASSWORD} \
+                         -D${MYSQL_DATABASE} \
+                         -e "SELECT 1"; do
+                echo "Database is not yet ready - sleeping"
+                sleep 2
+              done
+              echo "Database connection verified!"
+          env:
+            - name: MYSQL_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-backend-secret
+                  key: MYSQL_USER
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-backend-secret
+                  key: MYSQL_PASSWORD
+            - name: MYSQL_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-backend-secret
+                  key: MYSQL_DATABASE
       containers:
         - name: backend
           image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
+          imagePullPolicy: Always
           ports:
             - containerPort: 5000
               name: http
@@ -35,7 +89,7 @@ spec:
             - name: PYTHONPATH
               value: "/app"
             - name: DB_HOST
-              value: "{{ .Release.Name }}-mysql"
+              value: "{{ .Release.Name }}-mysql.{{ .Release.Namespace }}.svc.cluster.local"
             - name: DB_PORT
               value: "{{ .Values.mysql.service.port }}"
           volumeMounts:
@@ -43,6 +97,12 @@ spec:
               mountPath: /tmp/flask_sessions
           resources:
             {{- toYaml .Values.backend.resources | nindent 12 }}
+          startupProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            failureThreshold: 30
+            periodSeconds: 10
           readinessProbe:
             httpGet:
               path: /api/health
@@ -59,6 +119,12 @@ spec:
             periodSeconds: {{ .Values.backend.probes.liveness.periodSeconds }}
             timeoutSeconds: 3
             failureThreshold: 3
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "sleep 10"]
       volumes:
         - name: session-data
           emptyDir: {}
+      terminationGracePeriodSeconds: 60
+{{- end }}

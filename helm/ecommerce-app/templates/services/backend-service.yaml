@@ -1,13 +1,49 @@
+{{- if .Values.backend.enabled }}
 apiVersion: v1
 kind: Service
 metadata:
   name: {{ .Values.backend.name }}
+  labels:
+    app: {{ .Values.backend.name }}
+    tier: backend
+    environment: {{ .Values.global.environment }}
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-internal: "false"
+    service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
+    service.beta.kubernetes.io/aws-load-balancer-connection-draining-enabled: "true"
+    service.beta.kubernetes.io/aws-load-balancer-connection-draining-timeout: "60"
 spec:
   type: {{ .Values.backend.service.type }}
   ports:
     - port: {{ .Values.backend.service.port }}
-      targetPort: http
+      targetPort: {{ .Values.backend.service.targetPort | default .Values.backend.service.port }}
       protocol: TCP
       name: http
   selector:
     app: {{ .Values.backend.name }}
+    tier: backend
+  sessionAffinity: None
+  externalTrafficPolicy: Local
+{{- end }}
+---
+{{- if .Values.mysql.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-mysql
+  labels:
+    app: {{ .Values.mysql.name }}
+    tier: database
+    environment: {{ .Values.global.environment }}
+spec:
+  clusterIP: None
+  ports:
+    - port: {{ .Values.mysql.service.port }}
+      targetPort: {{ .Values.mysql.service.targetPort | default .Values.mysql.service.port }}
+      protocol: TCP
+      name: mysql
+  selector:
+    app: {{ .Values.mysql.name }}
+    tier: database
+  publishNotReadyAddresses: false
+{{- end }}
