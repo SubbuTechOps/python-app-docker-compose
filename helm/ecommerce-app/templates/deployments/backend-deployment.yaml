@@ -14,11 +14,10 @@ spec:
       labels:
         app: {{ .Values.backend.name }}
     spec:
-      terminationGracePeriodSeconds: 30
       initContainers:
         - name: wait-for-mysql
           image: busybox:1.28
-          command: ['sh', '-c', 'timeout 300s bash -c "until nc -z {{ .Release.Name }}-mysql 3306; do echo waiting for mysql; sleep 5; done"']
+          command: ['sh', '-c', 'timeout 300s sh -c "until nc -z {{ .Release.Name }}-mysql 3306; do echo waiting for mysql; sleep 5; done"']
       containers:
         - name: backend
           image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
@@ -41,13 +40,6 @@ spec:
               value: "{{ .Release.Name }}-mysql"
             - name: DB_PORT
               value: "{{ .Values.mysql.service.port }}"
-          startupProbe:
-            httpGet:
-              path: /api/health
-              port: http
-            failureThreshold: 30
-            periodSeconds: 10
-            timeoutSeconds: 5
           readinessProbe:
             httpGet:
               path: /api/health
