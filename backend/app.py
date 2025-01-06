@@ -12,7 +12,7 @@ from functools import wraps
 
 # Configure logging
 log_format = "%(asctime)s - %(levelname)s - %(message)s"
-logging.basicConfig(level=logging.DEBUG, format=log_format)  # Changed to DEBUG level
+logging.basicConfig(level=logging.DEBUG, format=log_format)
 logger = logging.getLogger(__name__)
 
 # Load environment variables
@@ -41,27 +41,26 @@ def create_app():
     os.makedirs(session_file_dir, exist_ok=True)
 
     app.config.update(
-    SECRET_KEY=os.getenv('SECRET_KEY', 'default_secret_key'),
-    SESSION_TYPE='filesystem',
-    SESSION_FILE_DIR=os.getenv('SESSION_FILE_DIR', '/tmp/flask_sessions'),
-    SESSION_PERMANENT=True,
-    PERMANENT_SESSION_LIFETIME=timedelta(days=1),
-    SESSION_COOKIE_SECURE=False,  # Set to True in production with HTTPS
-    SESSION_COOKIE_HTTPONLY=True,
-    SESSION_COOKIE_SAMESITE='Lax'
+        SECRET_KEY=os.getenv('SECRET_KEY', 'default_secret_key'),
+        SESSION_TYPE='filesystem',
+        SESSION_FILE_DIR=session_file_dir,
+        SESSION_PERMANENT=True,
+        PERMANENT_SESSION_LIFETIME=timedelta(days=1),
+        SESSION_COOKIE_SECURE=False,  # Set to True in production with HTTPS
+        SESSION_COOKIE_HTTPONLY=True,
+        SESSION_COOKIE_SAMESITE='Lax'
     )
     Session(app)
 
-    # More permissive CORS configuration for development
+    # Updated CORS configuration
     CORS(app,
-         resources={r"/*": {  # Changed from /api/* to /* to allow all routes
-             "origins": ["http://localhost:5000", "http://127.0.0.1:5000"],
+         resources={r"/*": {
+             "origins": ["*"],  # Allow all origins in development
              "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-             "allow_credentials": True
+             "allow_headers": ["Content-Type", "Authorization"],
+             "expose_headers": ["Content-Type", "Authorization"]
          }},
-         supports_credentials=True,
-         expose_headers=['Set-Cookie'],
-         allow_headers=['Content-Type', 'Authorization'])
+         supports_credentials=True)
 
     # Debug middleware
     @app.before_request
@@ -76,25 +75,37 @@ def create_app():
         logger.debug(f"Response cookies: {response.headers.get('Set-Cookie')}")
         return response
 
-    # Rest of your routes...
-    frontend_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../frontend"))
-    if not os.path.exists(frontend_path):
-        logger.error(f"Frontend directory not found: {frontend_path}")
-        raise FileNotFoundError(f"Frontend directory not found: {frontend_path}")
+    # Frontend paths handling
+    frontend_paths = [
+        "/app/frontend",  # Docker container path
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "../frontend")),  # Local development path
+    ]
+
+    def get_frontend_path():
+        for path in frontend_paths:
+            if os.path.exists(path):
+                logger.info(f"Using frontend path: {path}")
+                return path
+        logger.warning("No frontend directory found, API-only mode")
+        return None
+
+    frontend_path = get_frontend_path()
 
     @app.route("/<path:filename>")
     def serve_static(filename):
         logger.debug(f"Serving static file: {filename}")
-        file_path = os.path.join(frontend_path, filename)
-        if not os.path.isfile(file_path):
-            logger.warning(f"File not found: {filename}")
-            return jsonify({"message": "File not found"}), 404
-        return send_from_directory(frontend_path, filename)
+        if frontend_path:
+            file_path = os.path.join(frontend_path, filename)
+            if os.path.isfile(file_path):
+                return send_from_directory(frontend_path, filename)
+        return jsonify({"message": "File not found"}), 404
 
     @app.route("/")
     def serve_index():
         logger.debug("Serving index.html")
-        return send_from_directory(frontend_path, "index.html")
+        if frontend_path and os.path.isfile(os.path.join(frontend_path, "index.html")):
+            return send_from_directory(frontend_path, "index.html")
+        return jsonify({"message": "API Server Running"}), 200
 
     @app.route("/api/health", methods=["GET"])
     def health_check():
@@ -108,7 +119,8 @@ def create_app():
             "status": "healthy",
             "uptime": f"{uptime:.2f} seconds",
             "session_active": "username" in session,
-            "session_data": session_data
+            "session_data": session_data,
+            "frontend_path": frontend_path
         }), 200
 
     # Register Blueprints

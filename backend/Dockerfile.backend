@@ -9,15 +9,19 @@ RUN apt-get update && \
     apt-get install -y curl netcat-traditional && \
     rm -rf /var/lib/apt/lists/*
 
-# Create the frontend directory that your Flask app is looking for
-RUN mkdir /app/frontend
-
 # Copy the requirements file and install dependencies
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Create and copy frontend files
+COPY frontend/ /app/frontend/
+
 # Copy the backend application code
 COPY backend/ .
+
+# Create directory for Flask sessions
+RUN mkdir -p /tmp/flask_sessions && \
+    chmod 777 /tmp/flask_sessions
 
 # Expose the application port
 EXPOSE 5000
@@ -28,7 +32,8 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
 
 # Set environment variables
 ENV PYTHONPATH=/app \
-    FLASK_APP=wsgi:app
+    FLASK_APP=wsgi:app \
+    FLASK_DEBUG=false
 
 # Run the Flask application using Gunicorn
-CMD ["gunicorn", "--workers", "4", "--bind", "0.0.0.0:5000", "--timeout", "120", "wsgi:app"]
+CMD ["gunicorn", "--workers", "4", "--bind", "0.0.0.0:5000", "--timeout", "120", "--log-level", "info", "wsgi:app"]
