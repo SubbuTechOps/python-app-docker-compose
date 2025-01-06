@@ -37,7 +37,7 @@ spec:
             - name: DB_HOST
               value: "{{ .Release.Name }}-mysql"
             - name: DB_PORT
-              value: "{{ .Values.mysql.service.port | quote }}"
+              value: "{{ .Values.mysql.service.port }}"
           volumeMounts:
             - name: session-data
               mountPath: /tmp/flask_sessions

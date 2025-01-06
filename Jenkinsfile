@@ -60,6 +60,7 @@ pipeline {
                                --set backend.env.FLASK_APP=wsgi:app \
                                --wait \
                                --timeout 5m
+                               --debug
 
                            # Verify deployments
                            kubectl wait --namespace ecommerce --for=condition=ready pod \
