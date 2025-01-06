@@ -50,7 +50,6 @@ pipeline {
                        sh """
                            aws eks update-kubeconfig --name demo-eks-cluster --region ${AWS_DEFAULT_REGION}
 
-                           # Single Helm deployment for both MySQL and Backend
                            helm upgrade --install ecommerce ./helm/ecommerce-app \
                                --namespace ecommerce \
                                --create-namespace \
@@ -58,11 +57,10 @@ pipeline {
                                --set backend.image.repository=${REPOSITORY_URI} \
                                --set backend.image.tag=backend-${IMAGE_TAG} \
                                --set backend.env.FLASK_APP=wsgi:app \
+                               --set backend.env.FRONTEND_PATH=/app/frontend \
                                --wait \
-                               --timeout 10m \  # Increased timeout
-                               --set backend.env.FLASK_APP=wsgi:app \
-                               --set backend.env.FRONTEND_PATH=/app/frontend
-                               
+                               --timeout 10m
+
                            # Verify deployments
                            kubectl wait --namespace ecommerce --for=condition=ready pod \
                                -l app=ecommerce-db --timeout=300s
