@@ -1,61 +1,67 @@
 backend:
- name: ecommerce-backend
- image:
-   repository: 017820683847.dkr.ecr.us-east-1.amazonaws.com/ecommerce-app
-   tag: backend-18
- replicas: 2
- service:
-   name: ecommerce-backend-svc
-   type: LoadBalancer
-   port: 5000
- resources:
-   limits:
-     cpu: 800m
-     memory: 1Gi
-   requests:
-     cpu: 400m
-     memory: 512Mi
- env:
-   FLASK_APP: "app:create_app()"
-   GUNICORN_CMD_ARGS: "--bind=0.0.0.0:5000 --workers=4 --worker-class=sync --timeout=120 --reload"
-   PYTHONPATH: "/app"
- enabled: true
+  name: ecommerce-backend
+  image:
+    repository: 017820683847.dkr.ecr.us-east-1.amazonaws.com/ecommerce-app
+    tag: backend-18
+  replicas: 2
+  service:
+    name: ecommerce-backend-svc
+    type: LoadBalancer
+    port: 5000
+  resources:
+    limits:
+      cpu: 800m
+      memory: 1Gi
+    requests:
+      cpu: 400m
+      memory: 512Mi
+  probes:
+    startup:
+      failureThreshold: 30
+      periodSeconds: 10
+    readiness:
+      initialDelaySeconds: 20
+      periodSeconds: 10
+    liveness:
+      initialDelaySeconds: 30
+      periodSeconds: 20
+  enabled: true
 
 mysql:
- name: ecommerce-db
- image:
-   repository: mysql
-   tag: "8.0"
- service:
-   name: ecommerce-db-svc
-   port: 3306
- storage:
-   size: 10Gi
-   storageClassName: ebs-sc
- resources:
-   limits:
-     cpu: 1000m
-     memory: 2Gi
-   requests:
-     cpu: 500m
-     memory: 1Gi
- probes:
-   readiness:
-     initialDelaySeconds: 30
-     periodSeconds: 10
-   liveness:
-     initialDelaySeconds: 60
-     periodSeconds: 20
- enabled: true
+  name: ecommerce-db
+  image:
+    repository: mysql
+    tag: "8.0"
+  service:
+    name: ecommerce-mysql # Changed to match StatefulSet service name
+    port: 3306
+  storage:
+    size: 10Gi
+    storageClassName: ebs-sc
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+    requests:
+      cpu: 500m
+      memory: 1Gi
+  probes:
+    readiness:
+      initialDelaySeconds: 30
+      periodSeconds: 10
+    liveness:
+      initialDelaySeconds: 60
+      periodSeconds: 20
+  enabled: true
 
 config:
- flaskDebug: "true"
- sessionType: "filesystem"
- sessionFileDir: "/tmp/flask_sessions"
+  flaskDebug: "true"
+  sessionType: "filesystem"
+  sessionFileDir: "/tmp/flask_sessions"
 
 secrets:
- mysqlRootPassword: admin@1234
- mysqlUser: subbu
- mysqlPassword: admin@1234
- mysqlDatabase: ecommerce
- flaskSecretKey: "ecommerce_app_secret_key_2024_secure_shopping"
+  mysqlRootPassword: admin@1234
+  mysqlUser: subbu
+  mysqlPassword: admin@1234
+  mysqlDatabase: ecommerce
+  flaskSecretKey: "ecommerce_app_secret_key_2024_secure_shopping"

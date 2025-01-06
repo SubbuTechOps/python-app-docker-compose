@@ -1,58 +1,62 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Values.backend.name }}
-  labels:
-    app: {{ .Values.backend.name }}
+ name: {{ .Values.backend.name }}
+ labels:
+   app: {{ .Values.backend.name }}
 spec:
-  replicas: {{ .Values.backend.replicas }}
-  selector:
-    matchLabels:
-      app: {{ .Values.backend.name }}
-  template:
-    metadata:
-      labels:
-        app: {{ .Values.backend.name }}
-    spec:
-      initContainers:
-        - name: wait-for-mysql
-          image: mysql:8.0
-          command: ['sh', '-c', 'until mysql -h{{ .Release.Name }}-mysql -u$DB_USER -p$DB_PASSWORD $DB_NAME -e "SELECT 1"; do echo "Waiting for MySQL"; sleep 5; done']
-          envFrom:
-            - secretRef:
-                name: {{ .Release.Name }}-backend-secret
-      containers:
-        - name: backend
-          image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
-          ports:
-            - containerPort: 5000
-          envFrom:
-            - configMapRef:
-                name: {{ .Release.Name }}-backend-config
-            - secretRef:
-                name: {{ .Release.Name }}-backend-secret
-          env:
-            - name: GUNICORN_CMD_ARGS
-              value: "--bind=0.0.0.0:5000 --workers=4 --worker-class=sync --timeout=120 --reload"
-            - name: PYTHONPATH
-              value: "/app"
-            - name: FLASK_APP
-              value: "app:create_app()"
-            - name: DB_HOST
-              value: {{ .Release.Name }}-mysql
-            - name: DB_PORT
-              value: "{{ .Values.mysql.service.port }}"
-          readinessProbe:
-            httpGet:
-              path: /api/health
-              port: 5000
-            initialDelaySeconds: 45
-            periodSeconds: 10
-          livenessProbe:
-            httpGet:
-              path: /api/health
-              port: 5000
-            initialDelaySeconds: 60
-            periodSeconds: 20
-          resources:
-            {{- toYaml .Values.backend.resources | nindent 12 }}
+ replicas: {{ .Values.backend.replicas }}
+ selector:
+   matchLabels:
+     app: {{ .Values.backend.name }}
+ template:
+   metadata:
+     labels:
+       app: {{ .Values.backend.name }}
+   spec:
+     initContainers:
+       - name: wait-for-mysql
+         image: busybox:1.28
+         command: ['sh', '-c', 'until nc -z {{ .Release.Name }}-mysql 3306; do echo "waiting for mysql"; sleep 5; done']
+     containers:
+       - name: backend
+         image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
+         ports:
+           - containerPort: 5000
+             name: http
+         envFrom:
+           - configMapRef:
+               name: {{ .Release.Name }}-backend-config
+           - secretRef:
+               name: {{ .Release.Name }}-backend-secret
+         env:
+           - name: GUNICORN_CMD_ARGS
+             value: "--bind=0.0.0.0:5000 --workers=4 --worker-class=sync --timeout=120 --reload"
+           - name: PYTHONPATH
+             value: "/app"
+           - name: FLASK_APP
+             value: "app:create_app()"
+           - name: DB_HOST
+             value: {{ .Release.Name }}-mysql
+           - name: DB_PORT
+             value: "{{ .Values.mysql.service.port }}"
+         startupProbe:
+           httpGet:
+             path: /api/health
+             port: http
+           failureThreshold: 30
+           periodSeconds: 10
+         readinessProbe:
+           httpGet:
+             path: /api/health
+             port: http
+           initialDelaySeconds: 20
+           periodSeconds: 10
+         livenessProbe:
+           httpGet:
+             path: /api/health
+             port: http
+           initialDelaySeconds: 30
+           periodSeconds: 20
+         resources:
+           {{- toYaml .Values.backend.resources | nindent 12 }}

@@ -1,59 +1,71 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
- name: {{ .Release.Name }}-mysql
- labels:
-   app: {{ .Values.mysql.name }}
-   release: {{ .Release.Name }}
+  name: {{ .Release.Name }}-mysql
 spec:
- replicas: 1
- selector:
-   matchLabels:
-     app: {{ .Values.mysql.name }}
- serviceName: {{ .Release.Name }}-mysql
- template:
-   metadata:
-     labels:
-       app: {{ .Values.mysql.name }}
-       release: {{ .Release.Name }}
-   spec:
-     initContainers:
-     - name: init-mysql
-       image: mysql:8.0
-       command: ['sh', '-c', 'until mysqladmin ping -h 127.0.0.1 -u root -p${MYSQL_ROOT_PASSWORD}; do echo waiting for mysql; sleep 2; done;']
-       envFrom:
-         - secretRef:
-             name: {{ .Release.Name }}-mysql-secret
-     containers:
-       - name: mysql
-         image: "{{ .Values.mysql.image.repository }}:{{ .Values.mysql.image.tag }}"
-         ports:
-           - containerPort: 3306
-         envFrom:
-           - secretRef:
-               name: {{ .Release.Name }}-mysql-secret
-         volumeMounts:
-           - name: mysql-persistent-storage
-             mountPath: /var/lib/mysql
-         readinessProbe:
-           exec:
-             command: ['sh', '-c', 'mysqladmin ping -h 127.0.0.1 -u root -p${MYSQL_ROOT_PASSWORD}']
-           initialDelaySeconds: 30
-           periodSeconds: 10
-         livenessProbe:
-           exec:
-             command: ['sh', '-c', 'mysqladmin ping -h 127.0.0.1 -u root -p${MYSQL_ROOT_PASSWORD}']
-           initialDelaySeconds: 60
-           periodSeconds: 20
-         resources:
-           {{- toYaml .Values.mysql.resources | nindent 12 }}
- volumeClaimTemplates:
-   - metadata:
-       name: mysql-persistent-storage
-     spec:
-       accessModes:
-         - ReadWriteOnce
-       storageClassName: {{ .Values.mysql.storageClassName }}
-       resources:
-         requests:
-           storage: {{ .Values.mysql.storage.size }}
+  serviceName: {{ .Release.Name }}-mysql
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Values.mysql.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.mysql.name }}
+    spec:
+      containers:
+      - name: mysql
+        image: mysql:8.0
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Release.Name }}-mysql-secret
+              key: MYSQL_ROOT_PASSWORD
+        - name: MYSQL_DATABASE
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Release.Name }}-mysql-secret
+              key: MYSQL_DATABASE
+        - name: MYSQL_USER
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Release.Name }}-mysql-secret
+              key: MYSQL_USER
+        - name: MYSQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Release.Name }}-mysql-secret
+              key: MYSQL_PASSWORD
+        ports:
+        - containerPort: 3306
+          name: mysql
+        readinessProbe:
+          exec:
+            command: ["mysqladmin", "ping", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        livenessProbe:
+          exec:
+            command: ["mysqladmin", "ping", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+          initialDelaySeconds: 60
+          periodSeconds: 20
+        resources:
+          limits:
+            cpu: "1"
+            memory: 2Gi
+          requests:
+            cpu: "500m"
+            memory: 1Gi
+        volumeMounts:
+        - name: mysql-persistent-storage
+          mountPath: /var/lib/mysql
+  volumeClaimTemplates:
+  - metadata:
+      name: mysql-persistent-storage
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: ebs-sc
+      resources:
+        requests:
+          storage: 10Gi
