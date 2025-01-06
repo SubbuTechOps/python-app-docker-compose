@@ -17,9 +17,10 @@ spec:
       initContainers:
         - name: wait-for-mysql
           image: busybox:1.28
-          command: ['sh', '-c', 'timeout 300s sh -c "until nc -z {{ .Release.Name }}-mysql 3306; do echo waiting for mysql; sleep 5; done"']
+          command: ['sh', '-c', 'until nc -z -w5 {{ .Release.Name }}-mysql 3306; do echo "waiting for mysql"; sleep 5; done']
       containers:
         - name: backend
+          # Rest of the configuration remains the same
           image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
           ports:
             - containerPort: 5000
