@@ -1,51 +1,61 @@
 backend:
-  name: ecommerce-backend          # Added for clarity and uniqueness
-  image:
-    repository: 017820683847.dkr.ecr.us-east-1.amazonaws.com/ecommerce-app
-    tag: backend-18
-  replicas: 2
-  service:
-    name: ecommerce-backend-svc   # Unique service name
-    type: LoadBalancer
-    port: 5000
-  resources:
-    limits:
-      cpu: 800m          # Reserve less than 1 full CPU core per pod
-      memory: 1Gi        # Allocate 1 GiB of memory
-    requests:
-      cpu: 400m          # Minimum CPU request per pod
-      memory: 512Mi      # Minimum memory request per pod
-  enabled: true            # Enable backend deployment
+ name: ecommerce-backend
+ image:
+   repository: 017820683847.dkr.ecr.us-east-1.amazonaws.com/ecommerce-app
+   tag: backend-18
+ replicas: 2
+ service:
+   name: ecommerce-backend-svc
+   type: LoadBalancer
+   port: 5000
+ resources:
+   limits:
+     cpu: 800m
+     memory: 1Gi
+   requests:
+     cpu: 400m
+     memory: 512Mi
+ env:
+   FLASK_APP: "app:create_app()"
+   GUNICORN_CMD_ARGS: "--bind=0.0.0.0:5000 --workers=4 --worker-class=sync --timeout=120 --reload"
+   PYTHONPATH: "/app"
+ enabled: true
 
 mysql:
-  name: ecommerce-db               # Unique name for MySQL StatefulSet
-  image:
-    repository: mysql
-    tag: "8.0"
-  service:
-    name: ecommerce-db-svc         # Unique service name
-    port: 3306
-  storage:
-    size: 10Gi                     # Persistent storage size
-    storageClassName: ebs-sc       # StorageClass for dynamic provisioning
-  resources:
-    limits:
-      cpu: 1000m                   # Reserve 1 full CPU core
-      memory: 2Gi                  # Allocate 2 GiB of memory
-    requests:
-      cpu: 500m                    # Minimum CPU request for stable performance
-      memory: 1Gi                  # Minimum memory request
-  enabled: true                    # Enable MySQL deployment
+ name: ecommerce-db
+ image:
+   repository: mysql
+   tag: "8.0"
+ service:
+   name: ecommerce-db-svc
+   port: 3306
+ storage:
+   size: 10Gi
+   storageClassName: ebs-sc
+ resources:
+   limits:
+     cpu: 1000m
+     memory: 2Gi
+   requests:
+     cpu: 500m
+     memory: 1Gi
+ probes:
+   readiness:
+     initialDelaySeconds: 30
+     periodSeconds: 10
+   liveness:
+     initialDelaySeconds: 60
+     periodSeconds: 20
+ enabled: true
 
 config:
-  flaskDebug: "true"               # Flask debug mode
-  sessionType: "filesystem"        # Flask session storage type
-  sessionFileDir: "/tmp/flask_sessions"  # Session storage directory
+ flaskDebug: "true"
+ sessionType: "filesystem"
+ sessionFileDir: "/tmp/flask_sessions"
 
 secrets:
-  mysqlRootPassword: admin@1234
-  mysqlUser: subbu
-  mysqlPassword: admin@1234
-  mysqlDatabase: ecommerce
-  flaskSecretKey: "ecommerce_app_secret_key_2024_secure_shopping"
-
+ mysqlRootPassword: admin@1234
+ mysqlUser: subbu
+ mysqlPassword: admin@1234
+ mysqlDatabase: ecommerce
+ flaskSecretKey: "ecommerce_app_secret_key_2024_secure_shopping"

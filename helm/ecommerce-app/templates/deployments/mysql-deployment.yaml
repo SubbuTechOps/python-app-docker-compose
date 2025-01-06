@@ -28,19 +28,15 @@ spec:
           volumeMounts:
             - name: mysql-persistent-storage
               mountPath: /var/lib/mysql
+          readinessProbe:
+            tcpSocket:
+              port: 3306
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 3306
+            initialDelaySeconds: 60
+            periodSeconds: 20
           resources:
             {{- toYaml .Values.mysql.resources | nindent 12 }}
-  volumeClaimTemplates:
-    - metadata:
-        name: mysql-persistent-storage
-        labels:
-          app: {{ .Values.mysql.name }}
-      spec:
-        accessModes:
-          - ReadWriteOnce
-        resources:
-          requests:
-            storage: {{ .Values.mysql.storage.size }}
-        {{- if .Values.mysql.storageClassName }}
-        storageClassName: {{ .Values.mysql.storageClassName }}
-        {{- end }}

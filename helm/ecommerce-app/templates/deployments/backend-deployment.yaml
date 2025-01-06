@@ -4,9 +4,6 @@ metadata:
   name: {{ .Values.backend.name }}
   labels:
     app: {{ .Values.backend.name }}
-    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
-    release: {{ .Release.Name }}
-    heritage: Helm
 spec:
   replicas: {{ .Values.backend.replicas }}
   selector:
@@ -16,23 +13,46 @@ spec:
     metadata:
       labels:
         app: {{ .Values.backend.name }}
-        release: {{ .Release.Name }}
     spec:
+      initContainers:
+        - name: wait-for-mysql
+          image: mysql:8.0
+          command: ['sh', '-c', 'until mysql -h{{ .Release.Name }}-mysql -u$DB_USER -p$DB_PASSWORD $DB_NAME -e "SELECT 1"; do echo "Waiting for MySQL"; sleep 5; done']
+          envFrom:
+            - secretRef:
+                name: {{ .Release.Name }}-backend-secret
       containers:
         - name: backend
           image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
           ports:
-            - containerPort: {{ .Values.backend.service.port }}
+            - containerPort: 5000
           envFrom:
             - configMapRef:
                 name: {{ .Release.Name }}-backend-config
             - secretRef:
                 name: {{ .Release.Name }}-backend-secret
           env:
+            - name: GUNICORN_CMD_ARGS
+              value: "--bind=0.0.0.0:5000 --workers=4 --worker-class=sync --timeout=120 --reload"
+            - name: PYTHONPATH
+              value: "/app"
+            - name: FLASK_APP
+              value: "app:create_app()"
             - name: DB_HOST
-              value: {{ .Release.Name }}-{{ .Values.mysql.name }}
+              value: {{ .Release.Name }}-mysql
             - name: DB_PORT
               value: "{{ .Values.mysql.service.port }}"
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 5000
+            initialDelaySeconds: 45
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 5000
+            initialDelaySeconds: 60
+            periodSeconds: 20
           resources:
             {{- toYaml .Values.backend.resources | nindent 12 }}
-      restartPolicy: Always
