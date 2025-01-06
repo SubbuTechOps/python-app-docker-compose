@@ -20,7 +20,7 @@ pipeline {
 
                        # Health check
                        for i in {1..10}; do
-                           curl -f http://localhost:5000/health && break || sleep 5
+                           curl -f http://localhost:5000/api/health && break || sleep 5
                        done
                        
                        docker ps -a
@@ -57,13 +57,13 @@ pipeline {
                                --set mysql.storageClassName=ebs-sc \
                                --set backend.image.repository=${REPOSITORY_URI} \
                                --set backend.image.tag=backend-${IMAGE_TAG} \
-                               --set backend.env.FLASK_APP=app:app \
+                               --set backend.env.FLASK_APP=wsgi:app \
                                --wait \
                                --timeout 5m
 
                            # Verify deployments
                            kubectl wait --namespace ecommerce --for=condition=ready pod \
-                               -l app=ecommerce-db-mysql --timeout=300s
+                               -l app=ecommerce-db --timeout=300s
                            kubectl wait --namespace ecommerce --for=condition=ready pod \
                                -l app=ecommerce-backend --timeout=300s
 

@@ -19,7 +19,7 @@ spec:
         env:
         - name: MYSQL_ROOT_PASSWORD
           valueFrom:
-            secretKeyRef:
+            secretKeyRef: 
               name: {{ .Release.Name }}-mysql-secret
               key: MYSQL_ROOT_PASSWORD
         - name: MYSQL_DATABASE

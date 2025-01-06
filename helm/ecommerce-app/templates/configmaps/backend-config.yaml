@@ -5,4 +5,4 @@ metadata:
 data:
   FLASK_DEBUG: {{ .Values.config.flaskDebug | quote }}
   SESSION_TYPE: {{ .Values.config.sessionType | quote }}
-  SESSION_FILE_DIR: {{ .Values.config.sessionFileDir | quote }}
+  SESSION_FILE_DIR: "/tmp/flask_sessions"
