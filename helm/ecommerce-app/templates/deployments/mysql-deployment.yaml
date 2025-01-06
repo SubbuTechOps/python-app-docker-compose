@@ -17,6 +17,13 @@ spec:
        app: {{ .Values.mysql.name }}
        release: {{ .Release.Name }}
    spec:
+     initContainers:
+     - name: init-mysql
+       image: mysql:8.0
+       command: ['sh', '-c', 'until mysqladmin ping -h 127.0.0.1 -u root -p${MYSQL_ROOT_PASSWORD}; do echo waiting for mysql; sleep 2; done;']
+       envFrom:
+         - secretRef:
+             name: {{ .Release.Name }}-mysql-secret
      containers:
        - name: mysql
          image: "{{ .Values.mysql.image.repository }}:{{ .Values.mysql.image.tag }}"
@@ -30,28 +37,14 @@ spec:
              mountPath: /var/lib/mysql
          readinessProbe:
            exec:
-             command: ["mysqladmin", "ping", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+             command: ['sh', '-c', 'mysqladmin ping -h 127.0.0.1 -u root -p${MYSQL_ROOT_PASSWORD}']
            initialDelaySeconds: 30
            periodSeconds: 10
          livenessProbe:
            exec:
-             command: ["mysqladmin", "ping", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+             command: ['sh', '-c', 'mysqladmin ping -h 127.0.0.1 -u root -p${MYSQL_ROOT_PASSWORD}']
            initialDelaySeconds: 60
            periodSeconds: 20
-         startupProbe:
-           exec:
-             command: ["mysqladmin", "ping", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
-           failureThreshold: 30
-           periodSeconds: 10
-         lifecycle:
-           postStart:
-             exec:
-               command:
-                 - bash
-                 - -c
-                 - |
-                   mysql -u root -p${MYSQL_ROOT_PASSWORD} -e "CREATE DATABASE IF NOT EXISTS ${MYSQL_DATABASE};"
-                   mysql -u root -p${MYSQL_ROOT_PASSWORD} -e "GRANT ALL PRIVILEGES ON ${MYSQL_DATABASE}.* TO '${MYSQL_USER}'@'%';"
          resources:
            {{- toYaml .Values.mysql.resources | nindent 12 }}
  volumeClaimTemplates:
@@ -59,7 +52,7 @@ spec:
        name: mysql-persistent-storage
      spec:
        accessModes:
-         - ReadWriteOnce 
+         - ReadWriteOnce
        storageClassName: {{ .Values.mysql.storageClassName }}
        resources:
          requests:
