@@ -75,36 +75,51 @@ def create_app():
         logger.debug(f"Response cookies: {response.headers.get('Set-Cookie')}")
         return response
 
-    # Frontend paths handling
+    # Frontend paths handling with updated paths
     frontend_paths = [
-        "/app/frontend",  # Docker container path
+        "/frontend",  # Docker container path
+        "/app/frontend",  # Alternative Docker path
         os.path.abspath(os.path.join(os.path.dirname(__file__), "../frontend")),  # Local development path
     ]
 
     def get_frontend_path():
         for path in frontend_paths:
+            logger.debug(f"Checking frontend path: {path}")
             if os.path.exists(path):
                 logger.info(f"Using frontend path: {path}")
                 return path
+            logger.debug(f"Path {path} does not exist")
         logger.warning("No frontend directory found, API-only mode")
         return None
 
     frontend_path = get_frontend_path()
 
+    # Updated static file serving with mime type handling
     @app.route("/<path:filename>")
     def serve_static(filename):
         logger.debug(f"Serving static file: {filename}")
         if frontend_path:
             file_path = os.path.join(frontend_path, filename)
             if os.path.isfile(file_path):
+                # Handle different file types
+                if filename.endswith('.css'):
+                    return send_from_directory(frontend_path, filename, mimetype='text/css')
+                elif filename.endswith('.js'):
+                    return send_from_directory(frontend_path, filename, mimetype='application/javascript')
+                elif filename.endswith('.html'):
+                    return send_from_directory(frontend_path, filename, mimetype='text/html')
                 return send_from_directory(frontend_path, filename)
+        logger.warning(f"File not found: {filename}")
         return jsonify({"message": "File not found"}), 404
 
+    # Updated index route with explicit mime type
     @app.route("/")
     def serve_index():
         logger.debug("Serving index.html")
         if frontend_path and os.path.isfile(os.path.join(frontend_path, "index.html")):
-            return send_from_directory(frontend_path, "index.html")
+            logger.info("Found index.html, serving...")
+            return send_from_directory(frontend_path, "index.html", mimetype='text/html')
+        logger.warning("No index.html found, returning API message")
         return jsonify({"message": "API Server Running"}), 200
 
     @app.route("/api/health", methods=["GET"])
