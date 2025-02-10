@@ -1,0 +1,164 @@
+# Backend Service Account
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ecommerce-backend-sa
+  namespace: shopeasy-dev
+
+---
+# Backend ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  namespace: shopeasy-dev
+data:
+  FLASK_APP: "app.py"
+  FLASK_RUN_HOST: "0.0.0.0"
+  FLASK_RUN_PORT: "5000"
+  DB_HOST: "ecommerce-db"
+  DB_PORT: "3306"
+  DB_NAME: "ecommerce"
+  SESSION_TYPE: "filesystem"
+  SESSION_FILE_DIR: "/tmp/flask_sessions"
+  FLASK_DEBUG: "false"
+  FRONTEND_PATH: "/app/frontend"
+  WAIT_FOR_DB: "true"  # Ensures DB is up before backend starts
+
+---
+# Backend Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ecommerce-backend
+  namespace: shopeasy-dev
+  labels:
+    app: ecommerce
+    tier: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ecommerce
+      tier: backend
+  template:
+    metadata:
+      labels:
+        app: ecommerce
+        tier: backend
+    spec:
+      serviceAccountName: ecommerce-backend-sa
+      containers:
+      - name: backend
+        image: 017820683847.dkr.ecr.us-east-1.amazonaws.com/ecommerce-app-backend:latest
+        imagePullPolicy: Always
+        ports:
+        - name: http
+          containerPort: 5000
+        envFrom:
+        - configMapRef:
+            name: backend-config
+        env:
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: username
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: password
+        resources:
+          requests:
+            cpu: "200m"
+            memory: "256Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+        volumeMounts:
+        - name: flask-sessions
+          mountPath: /tmp/flask_sessions
+        startupProbe:
+          httpGet:
+            path: /api/health
+            port: http
+          failureThreshold: 30
+          periodSeconds: 10
+          initialDelaySeconds: 45  
+          timeoutSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /api/ready
+            port: http
+          initialDelaySeconds: 60  
+          periodSeconds: 15
+          timeoutSeconds: 10
+          failureThreshold: 6
+          successThreshold: 1
+        livenessProbe:
+          httpGet:
+            path: /api/health
+            port: http
+          initialDelaySeconds: 90  
+          periodSeconds: 20
+          timeoutSeconds: 5
+          failureThreshold: 3
+      volumes:
+      - name: flask-sessions
+        emptyDir: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ecommerce-backend
+  namespace: shopeasy-dev
+  labels:
+    app: ecommerce
+    tier: backend
+spec:
+  type: LoadBalancer  
+  ports:
+    - port: 80
+      targetPort: 5000  
+      protocol: TCP
+      name: http
+  selector:
+    app: ecommerce
+    tier: backend
+
+---
+# Backend HPA
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ecommerce-backend-hpa
+  namespace: shopeasy-dev
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: ecommerce-backend
+  minReplicas: 2
+  maxReplicas: 4
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Pods
+        value: 1
+        periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Pods
+        value: 1
+        periodSeconds: 120

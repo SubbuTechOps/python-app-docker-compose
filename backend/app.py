@@ -1,7 +1,6 @@
 import os
 import time
 import logging
-import sys
 from datetime import timedelta
 from flask import Flask, jsonify, send_from_directory, session, request
 from flask_cors import CORS
@@ -9,19 +8,17 @@ from flask_session import Session
 from dotenv import load_dotenv
 from functools import wraps
 
-
 # Configure logging
 log_format = "%(asctime)s - %(levelname)s - %(message)s"
 logging.basicConfig(level=logging.DEBUG, format=log_format)
 logger = logging.getLogger(__name__)
 
-# Load environment variables
 load_dotenv()
 
-# Track uptime for health check
 start_time = time.time()
+db_initialized = False
+FRONTEND_PATH = os.getenv("FRONTEND_PATH", "/app/frontend")
 
-# Login required decorator
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -33,9 +30,9 @@ def login_required(f):
     return decorated_function
 
 def create_app():
-    app = Flask(__name__)
+    app = Flask(__name__, static_folder=FRONTEND_PATH, static_url_path="")
 
-    # Enhanced session configuration
+    # Session Configuration
     app.secret_key = os.getenv('SECRET_KEY', 'default_secret_key')
     session_file_dir = os.getenv('SESSION_FILE_DIR', '/tmp/flask_sessions')
     os.makedirs(session_file_dir, exist_ok=True)
@@ -46,128 +43,131 @@ def create_app():
         SESSION_FILE_DIR=session_file_dir,
         SESSION_PERMANENT=True,
         PERMANENT_SESSION_LIFETIME=timedelta(days=1),
-        SESSION_COOKIE_SECURE=False,  # Set to True in production with HTTPS
+        SESSION_COOKIE_SECURE=False,
         SESSION_COOKIE_HTTPONLY=True,
-        SESSION_COOKIE_SAMESITE='Lax'
+        SESSION_COOKIE_SAMESITE='Lax',
+        FRONTEND_PATH=FRONTEND_PATH
     )
     Session(app)
 
     # Updated CORS configuration
-    CORS(app,
-         resources={r"/*": {
-             "origins": ["*"],  # Allow all origins in development
-             "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-             "allow_headers": ["Content-Type", "Authorization"],
-             "expose_headers": ["Content-Type", "Authorization"]
-         }},
-         supports_credentials=True)
+    CORS(app, 
+         resources={r"/api/*": {"origins": "*"}},
+         supports_credentials=True,
+         methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+         allow_headers=["Content-Type", "Authorization", "Accept"],
+         expose_headers=["Content-Type", "Authorization"])
 
-    # Debug middleware
     @app.before_request
-    def before_request():
-        logger.debug(f"Incoming request: {request.method} {request.path}")
-        logger.debug(f"Session contents: {session}")
-        logger.debug(f"Request cookies: {request.cookies}")
+    def log_request():
+        logger.info(f"🔍 Incoming request: {request.method} {request.path}")
 
-    @app.after_request
-    def after_request(response):
-        logger.debug(f"Response status: {response.status_code}")
-        logger.debug(f"Response cookies: {response.headers.get('Set-Cookie')}")
-        return response
+    try:
+        from database.db_config import check_db_connection, initialize_pool
 
-    # Frontend paths handling with updated paths
-    frontend_paths = [
-        "/frontend",  # Docker container path
-        "/app/frontend",  # Alternative Docker path
-        os.path.abspath(os.path.join(os.path.dirname(__file__), "../frontend")),  # Local development path
-    ]
+        logger.info("🔄 Initializing Database Connection Pool...")
+        if not initialize_pool():
+            logger.error("❌ Database connection pool initialization failed!")
+        else:
+            logger.info("✅ Database Connection Pool Initialized Successfully!")
 
-    def get_frontend_path():
-        for path in frontend_paths:
-            logger.debug(f"Checking frontend path: {path}")
-            if os.path.exists(path):
-                logger.info(f"Using frontend path: {path}")
-                return path
-            logger.debug(f"Path {path} does not exist")
-        logger.warning("No frontend directory found, API-only mode")
-        return None
+        if check_db_connection():
+            logger.info("✅ Database connection successful")
+            global db_initialized
+            db_initialized = True
+        else:
+            logger.warning("⚠️ Database connection failed!")
 
-    frontend_path = get_frontend_path()
+    except Exception as e:
+        logger.error(f"🚨 Failed to check database connection: {str(e)}")
 
-    # Updated static file serving with mime type handling
-    @app.route("/<path:filename>")
-    def serve_static(filename):
-        logger.debug(f"Serving static file: {filename}")
-        if frontend_path:
-            file_path = os.path.join(frontend_path, filename)
-            if os.path.isfile(file_path):
-                # Handle different file types
-                if filename.endswith('.css'):
-                    return send_from_directory(frontend_path, filename, mimetype='text/css')
-                elif filename.endswith('.js'):
-                    return send_from_directory(frontend_path, filename, mimetype='application/javascript')
-                elif filename.endswith('.html'):
-                    return send_from_directory(frontend_path, filename, mimetype='text/html')
-                return send_from_directory(frontend_path, filename)
-        logger.warning(f"File not found: {filename}")
-        return jsonify({"message": "File not found"}), 404
-
-    # Updated index route with explicit mime type
-    @app.route("/")
-    def serve_index():
-        logger.debug("Serving index.html")
-        if frontend_path and os.path.isfile(os.path.join(frontend_path, "index.html")):
-            logger.info("Found index.html, serving...")
-            return send_from_directory(frontend_path, "index.html", mimetype='text/html')
-        logger.warning("No index.html found, returning API message")
-        return jsonify({"message": "API Server Running"}), 200
-
-    @app.route("/api/health", methods=["GET"])
+    @app.route("/api/health")
     def health_check():
-        uptime = time.time() - start_time
-        session_data = {
-            "username": session.get("username", "Not set"),
-            "user_id": session.get("user_id", "Not set")
-        }
-        logger.debug(f"Health check - Session data: {session_data}")
         return jsonify({
             "status": "healthy",
-            "uptime": f"{uptime:.2f} seconds",
-            "session_active": "username" in session,
-            "session_data": session_data,
-            "frontend_path": frontend_path
+            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "uptime": int(time.time() - start_time)
         }), 200
 
-    # Register Blueprints
-    from routes.auth_routes import auth_bp
-    from routes.product_routes import product_bp
-    from routes.cart_routes import cart_bp
-    from routes.order_routes import order_bp
-    app.register_blueprint(auth_bp, url_prefix="/api/auth")
-    app.register_blueprint(product_bp, url_prefix="/api")
-    app.register_blueprint(cart_bp, url_prefix="/api")
-    app.register_blueprint(order_bp, url_prefix="/api/orders")
+    @app.route("/api/ready")
+    def readiness_check():
+        try:
+            from database.db_config import check_db_connection
 
-    # Error Handlers
+            checks = {
+                "app": "ready",
+                "uptime": int(time.time() - start_time),
+                "session_directory": os.access(session_file_dir, os.W_OK)
+            }
+
+            db_status = check_db_connection()
+            checks["database"] = db_status
+
+            logger.debug(f"🔍 Readiness Check: {checks}")
+
+            is_ready = db_status and checks["session_directory"]
+            return jsonify({
+                "status": "ready" if is_ready else "not ready",
+                "checks": checks
+            }), 200 if is_ready else 503
+
+        except Exception as e:
+            logger.error(f"🚨 Readiness check failed: {e}")
+            return jsonify({
+                "status": "error",
+                "message": str(e)
+            }), 503
+
+    # Register Blueprints with updated prefixes
+    try:
+        from routes.auth_routes import auth_bp
+        from routes.product_routes import product_bp
+        from routes.cart_routes import cart_bp
+        from routes.order_routes import order_bp
+
+        app.register_blueprint(auth_bp, url_prefix="/api/auth")
+        app.register_blueprint(product_bp, url_prefix="/api")
+        app.register_blueprint(cart_bp, url_prefix="/api")
+        app.register_blueprint(order_bp, url_prefix="/api")  # Updated from "/api/orders"
+        logger.info("✅ All blueprints registered successfully!")
+
+    except Exception as e:
+        logger.error(f"🚨 Error registering blueprints: {e}")
+
+    @app.route("/")
+    def serve_index():
+        logger.info(f"📢 Serving index.html from {FRONTEND_PATH}")
+        if os.path.exists(os.path.join(FRONTEND_PATH, "index.html")):
+            return send_from_directory(FRONTEND_PATH, "index.html")
+        else:
+            logger.error("❌ index.html not found in FRONTEND_PATH")
+            return jsonify({"message": "Frontend not found"}), 500
+
+    @app.route("/<path:filename>")
+    def serve_static_files(filename):
+        full_path = os.path.join(FRONTEND_PATH, filename)
+        if os.path.exists(full_path):
+            return send_from_directory(FRONTEND_PATH, filename)
+        else:
+            logger.warning(f"⚠️ Requested file {filename} not found in {FRONTEND_PATH}")
+            return jsonify({"message": "Resource not found"}), 404
+
     @app.errorhandler(404)
     def not_found(error):
-        logger.warning(f"Resource not found: {request.path}")
+        logger.warning(f"404 - Resource not found: {request.path}")
         return jsonify({"message": "Resource not found"}), 404
 
     @app.errorhandler(500)
     def internal_error(error):
-        logger.error(f"Internal server error: {error}")
+        logger.error(f"500 - Internal server error: {error}")
         return jsonify({"message": "Internal server error"}), 500
-
-    @app.errorhandler(400)
-    def bad_request(error):
-        logger.warning(f"Bad request: {error}")
-        return jsonify({"message": "Bad request"}), 400
 
     return app
 
 if __name__ == "__main__":
     app = create_app()
     debug_mode = os.getenv("FLASK_DEBUG", "True").lower() == "true"
-    logger.info(f"Starting Flask app in {'debug' if debug_mode else 'production'} mode")
-    app.run(debug=debug_mode, host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
+    port = int(os.getenv("PORT", 5000))
+
+    logger.info(f"🚀 Starting Flask app in {'debug' if debug_mode else 'production'} mode on port {port}")
+    app.run(debug=debug_mode, host="0.0.0.0", port=port)

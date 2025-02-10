@@ -1,30 +1,35 @@
+-- Insert Admin User
+INSERT INTO users (username, password, is_admin) VALUES (
+    'admin',
+    '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewLxNfEc5Zzd6G5K', -- password: admin1234
+    TRUE
+);
+
 -- Insert Sample Users
--- Passwords are assumed to be hashed (e.g., using bcrypt)
-INSERT INTO users (username, password, created_at) VALUES 
-('john_doe', '$2b$12$abcdefghijABCDEFGHIJ/uvwxyzUVWXYZ1234567890abcdefghi', NOW()), -- bcrypt hash for "password123"
-('jane_doe', '$2b$12$1234567890ABCDEFGHIJabcdefghij/uvwxyzUVWXYZabcdefghi', NOW()); -- bcrypt hash for "securepassword"
+INSERT INTO users (username, password, is_admin) VALUES
+('john_doe', '$2b$12$abcdefghijABCDEFGHIJ/uvwxyzUVWXYZ1234567890abcdefghi', FALSE),
+('jane_doe', '$2b$12$1234567890ABCDEFGHIJabcdefghij/uvwxyzUVWXYZabcdefghi', FALSE);
 
 -- Insert Sample Products
-INSERT INTO products (name, price, created_at) VALUES
-('Laptop', 799.99, NOW()),
-('Smartphone', 499.99, NOW()),
-('Tablet', 299.99, NOW());
+INSERT INTO products (name, price, description, stock) VALUES
+('iPhone 15 Pro', 999.99, 'Latest iPhone model with advanced features', 50),
+('iPad Air', 749.99, 'Powerful and portable iPad', 30),
+('Samsung Galaxy S24', 899.99, 'Latest Android flagship phone', 40),
+('Xbox Series X', 499.99, 'Next-gen gaming console', 25),
+('PS5', 499.99, 'PlayStation 5 gaming console', 20);
 
 -- Insert Sample Orders
--- User IDs must match those in the 'users' table
-INSERT INTO orders (user_id, total_amount, created_at) VALUES
-(1, 1299.98, NOW()), -- Order by john_doe
-(2, 499.99, NOW());  -- Order by jane_doe
+INSERT INTO orders (user_id, total_amount, status) VALUES
+(2, 1749.98, 'completed'),
+(3, 499.99, 'pending');
 
 -- Insert Sample Order Items
--- Order IDs and Product IDs must match those in 'orders' and 'products'
-INSERT INTO order_items (order_id, product_id, quantity, created_at) VALUES
-(1, 1, 1, NOW()), -- Laptop in order 1
-(1, 2, 1, NOW()), -- Smartphone in order 1
-(2, 2, 1, NOW()); -- Smartphone in order 2
+INSERT INTO order_items (order_id, product_id, quantity, price_at_time) VALUES
+(1, 1, 1, 999.99),
+(1, 2, 1, 749.99),
+(2, 4, 1, 499.99);
 
 -- Insert Sample Cart Items
--- User IDs and Product IDs must match those in 'users' and 'products'
-INSERT INTO cart_items (user_id, product_id, quantity, created_at) VALUES
-(1, 3, 2, NOW()), -- 2 Tablets in john_doe's cart
-(2, 1, 1, NOW()); -- 1 Laptop in jane_doe's cart
+INSERT INTO cart_items (user_id, product_id, quantity) VALUES
+(2, 3, 1),
+(3, 1, 1);

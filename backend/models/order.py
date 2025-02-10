@@ -1,115 +1,121 @@
 from database.db_config import get_db_connection, close_db_connection
 from models.product import Product
+import logging
 
+logger = logging.getLogger(__name__)
 
 class Order:
-    def __init__(self, order_id, user_id, total_amount, items):
+    def __init__(self, order_id, user_id, total_amount, status='pending'):
         self.order_id = order_id
         self.user_id = user_id
         self.total_amount = total_amount
-        self.items = items  # List of Product objects
+        self.status = status
+        self.items = []
 
     def to_dict(self):
         """Convert Order object to dictionary for JSON serialization."""
         return {
             "order_id": self.order_id,
             "user_id": self.user_id,
-            "total_amount": self.total_amount,
-            "items": [item.to_dict() for item in self.items]
+            "total_amount": float(self.total_amount),
+            "status": self.status,
+            "items": [item.to_dict() for item in self.items if item]
         }
 
     @staticmethod
-    def create_order(user_id, total_amount, items):
-        """
-        Save a new order to the database.
-        Args:
-            user_id: ID of the user placing the order.
-            total_amount: Total amount of the order.
-            items: List of dictionaries with product_id and quantity.
-        Returns:
-            The created order as an Order object.
-        """
-        connection = get_db_connection()
-        if not connection:
-            raise Exception("Database connection failed")
-
+    def create_order(user_id, items):
+        """Create a new order with calculated total."""
+        connection = None
         try:
-            cursor = connection.cursor()
+            connection = get_db_connection()
+            cursor = connection.cursor(dictionary=True)
 
-            # Insert the order into the orders table
+            # Calculate total
+            total_amount = 0
+            for item in items:
+                cursor.execute(
+                    "SELECT price FROM products WHERE id = %s",
+                    (item["product_id"],)
+                )
+                product = cursor.fetchone()
+                if product:
+                    total_amount += float(product["price"]) * item["quantity"]
+
+            # Create order
             cursor.execute(
-                "INSERT INTO orders (user_id, total_amount) VALUES (%s, %s)",
-                (user_id, total_amount),
+                """INSERT INTO orders (user_id, total_amount, status) 
+                   VALUES (%s, %s, 'pending')""",
+                (user_id, total_amount)
             )
             order_id = cursor.lastrowid
 
-            # Insert each item into the order_items table
+            # Add items
             for item in items:
                 cursor.execute(
-                    "INSERT INTO order_items (order_id, product_id, quantity) VALUES (%s, %s, %s)",
-                    (order_id, item["product_id"], item["quantity"]),
+                    """INSERT INTO order_items 
+                       (order_id, product_id, quantity, price_at_time) 
+                       SELECT %s, %s, %s, price
+                       FROM products WHERE id = %s""",
+                    (order_id, item["product_id"], item["quantity"], 
+                     item["product_id"])
                 )
 
             connection.commit()
-
-            # Create Product objects for the items
-            product_objects = [
-                Product.get_product_by_id(item["product_id"]) for item in items
-            ]
-
-            return Order(order_id=order_id, user_id=user_id, total_amount=total_amount, items=product_objects)
+            logger.info(f"Order {order_id} created for user {user_id}")
+            
+            return Order(order_id, user_id, total_amount)
 
         except Exception as e:
-            connection.rollback()
-            raise e
+            logger.error(f"Error creating order: {str(e)}")
+            if connection:
+                connection.rollback()
+            raise
         finally:
-            close_db_connection(connection)
+            if connection:
+                close_db_connection(connection)
 
     @staticmethod
     def get_order_by_id(order_id):
-        """
-        Retrieve an order by its ID from the database.
-        Args:
-            order_id: ID of the order to retrieve.
-        Returns:
-            An Order object if found, else None.
-        """
-        connection = get_db_connection()
-        if not connection:
-            raise Exception("Database connection failed")
-
+        """Get order details by ID."""
+        connection = None
         try:
+            connection = get_db_connection()
             cursor = connection.cursor(dictionary=True)
 
-            # Fetch the order details
-            cursor.execute("SELECT * FROM orders WHERE id = %s", (order_id,))
-            order_row = cursor.fetchone()
+            cursor.execute(
+                """SELECT o.*, oi.product_id, oi.quantity, 
+                          oi.price_at_time, p.name
+                   FROM orders o
+                   JOIN order_items oi ON o.id = oi.order_id
+                   JOIN products p ON oi.product_id = p.id
+                   WHERE o.id = %s""",
+                (order_id,)
+            )
+            rows = cursor.fetchall()
 
-            if not order_row:
+            if not rows:
                 return None
 
-            # Fetch the items associated with the order
-            cursor.execute(
-                "SELECT oi.product_id, oi.quantity, p.name, p.price "
-                "FROM order_items oi "
-                "JOIN products p ON oi.product_id = p.id "
-                "WHERE oi.order_id = %s",
-                (order_id,),
-            )
-            items = cursor.fetchall()
-
-            # Create Product objects for the items
-            product_objects = [
-                Product(product_id=item["product_id"], name=item["name"], price=item["price"])
-                for item in items
-            ]
-
-            return Order(
-                order_id=order_row["id"],
-                user_id=order_row["user_id"],
-                total_amount=order_row["total_amount"],
-                items=product_objects,
+            order = Order(
+                order_id=rows[0]["id"],
+                user_id=rows[0]["user_id"],
+                total_amount=float(rows[0]["total_amount"]),
+                status=rows[0]["status"]
             )
 
+            for row in rows:
+                product = Product(
+                    product_id=row["product_id"],
+                    name=row["name"],
+                    price=float(row["price_at_time"])
+                )
+                order.items.append(product)
+
+            return order
+
+        except Exception as e:
+            logger.error(f"Error getting order {order_id}: {str(e)}")
+            return None
         finally:
-            close_db_connection(connection)
+            if connection:
+                close_db_connection(connection)

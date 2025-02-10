@@ -1,0 +1,141 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mysql-initdb-config
+data:
+  01_schema.sql: |
+    -- Create Database
+    CREATE DATABASE IF NOT EXISTS ecommerce
+    CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+    -- Create application user and grant privileges
+    CREATE USER IF NOT EXISTS 'subbu'@'%' IDENTIFIED BY 'admin@1234';
+    GRANT ALL PRIVILEGES ON ecommerce.* TO 'subbu'@'%';
+    FLUSH PRIVILEGES;
+
+    -- Use the Database 
+    USE ecommerce;
+
+    -- Create Users Table with is_admin column
+    CREATE TABLE users (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        username VARCHAR(50) NOT NULL UNIQUE,
+        password VARCHAR(100) NOT NULL,
+        is_admin BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    );
+
+    -- Create Products Table
+    CREATE TABLE products (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        description TEXT,
+        price DECIMAL(10, 2) NOT NULL,
+        category VARCHAR(50),
+        stock INT DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    );
+
+    -- Create Orders Table
+    CREATE TABLE orders (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        total_amount DECIMAL(10, 2) NOT NULL,
+        status ENUM('pending', 'processing', 'shipped', 'delivered') DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    -- Create Order Items Table
+    CREATE TABLE order_items (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        order_id INT NOT NULL,
+        product_id INT NOT NULL,
+        quantity INT NOT NULL DEFAULT 1,
+        price_at_time DECIMAL(10, 2) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+        FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+        INDEX (order_id),
+        INDEX (product_id)
+    );
+
+    -- Create Cart Items Table
+    CREATE TABLE cart_items (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        product_id INT NOT NULL,
+        quantity INT NOT NULL DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+        INDEX (user_id),
+        INDEX (product_id)
+    );
+
+    -- Insert default admin user
+    INSERT INTO users (username, password, is_admin) VALUES (
+        'admin',
+        '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewLxNfEc5Zzd6G5K', -- password: admin1234
+        TRUE
+    );
+
+  02_data.sql: |
+    USE ecommerce;
+
+    -- Insert Sample Users
+    INSERT INTO users (username, password, created_at) VALUES 
+    ('john_doe', '$2b$12$abcdefghijABCDEFGHIJ/uvwxyzUVWXYZ1234567890abcdefghi', NOW()),
+    ('jane_doe', '$2b$12$1234567890ABCDEFGHIJabcdefghij/uvwxyzUVWXYZabcdefghi', NOW());
+
+    -- Insert Sample Products with Categories and Descriptions
+    INSERT INTO products (name, description, price, category, stock, created_at) VALUES
+    -- Electronics
+    ('MacBook Pro', '16-inch, M2 Pro chip, 16GB RAM, 512GB SSD', 1999.99, 'Electronics', 50, NOW()),
+    ('iPhone 15 Pro', '256GB, Space Black, A17 Pro chip', 999.99, 'Electronics', 100, NOW()),
+    ('iPad Air', '10.9-inch, M1 chip, 256GB, WiFi', 749.99, 'Electronics', 75, NOW()),
+    ('Samsung Galaxy S24', '512GB, Titanium Frame, AI Features', 899.99, 'Electronics', 80, NOW()),
+    ('AirPods Pro', 'Active Noise Cancellation, Spatial Audio', 249.99, 'Electronics', 150, NOW()),
+
+    -- Gaming
+    ('PlayStation 5', 'Digital Edition, DualSense Controller', 499.99, 'Gaming', 30, NOW()),
+    ('Xbox Series X', '1TB SSD, 4K Gaming Console', 499.99, 'Gaming', 25, NOW()),
+    ('Nintendo Switch OLED', '7-inch OLED Screen, White', 349.99, 'Gaming', 60, NOW()),
+
+    -- Accessories
+    ('Magic Keyboard', 'Wireless, Touch ID, Numeric Keypad', 149.99, 'Accessories', 100, NOW()),
+    ('Magic Mouse', 'Wireless, Multi-Touch Surface', 79.99, 'Accessories', 120, NOW()),
+    ('Apple Watch Charger', 'Magnetic Fast Charging Cable', 29.99, 'Accessories', 200, NOW()),
+    ('USB-C Hub', '7-in-1 Multiport Adapter', 39.99, 'Accessories', 150, NOW()),
+
+    -- Smart Home
+    ('HomePod mini', 'Smart Speaker, Siri enabled', 99.99, 'Smart Home', 80, NOW()),
+    ('Philips Hue Starter Kit', '3 Smart Bulbs + Bridge', 199.99, 'Smart Home', 40, NOW()),
+    ('Ring Video Doorbell', 'Pro, 1080p HD, Two-Way Talk', 169.99, 'Smart Home', 45, NOW());
+
+    -- Insert Sample Orders with Status
+    INSERT INTO orders (user_id, total_amount, status, created_at) VALUES
+    (1, 2249.98, 'delivered', NOW()), -- MacBook Pro + AirPods Pro
+    (2, 1099.98, 'processing', NOW()), -- iPhone 15 Pro + Magic Keyboard
+    (1, 699.98, 'shipped', NOW());     -- PlayStation 5 + Magic Mouse
+
+    -- Insert Sample Order Items with Price at Time
+    INSERT INTO order_items (order_id, product_id, quantity, price_at_time, created_at) VALUES
+    (1, 1, 1, 1999.99, NOW()),  -- MacBook Pro in order 1
+    (1, 5, 1, 249.99, NOW()),   -- AirPods Pro in order 1
+    (2, 2, 1, 999.99, NOW()),   -- iPhone 15 Pro in order 2
+    (2, 9, 1, 149.99, NOW()),   -- Magic Keyboard in order 2
+    (3, 6, 1, 499.99, NOW()),   -- PlayStation 5 in order 3
+    (3, 10, 1, 79.99, NOW());   -- Magic Mouse in order 3
+
+    -- Insert Sample Cart Items
+    INSERT INTO cart_items (user_id, product_id, quantity, created_at) VALUES
+    (1, 8, 1, NOW()),   -- Nintendo Switch OLED in john_doe's cart
+    (1, 13, 2, NOW()),  -- 2 HomePod minis in john_doe's cart
+    (2, 14, 1, NOW()),  -- Philips Hue Starter Kit in jane_doe's cart
+    (2, 15, 1, NOW());  -- Ring Video Doorbell in jane_doe's cart

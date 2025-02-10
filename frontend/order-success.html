@@ -61,9 +61,7 @@
                 <a href="/index.html">Home</a>
                 <a href="/catalog.html">Catalog</a>
                 <a href="/cart.html">Cart</a>
-                <div id="userSection" class="user-section">
-                    <!-- User info will be dynamically inserted here -->
-                </div>
+                <div id="userSection" class="user-section"></div>
             </nav>
         </div>
     </header>
@@ -74,6 +72,7 @@
             <div class="order-details">
                 <p><strong>Customer Name:</strong> <span id="customerName"></span></p>
                 <p><strong>Order Total:</strong> $<span id="orderTotal"></span></p>
+                <p><strong>Order ID:</strong> <span id="orderId"></span></p>
             </div>
             <p>Thank you for your order. Your order has been received and is being processed.</p>
             <a href="/catalog.html" class="continue-btn">Continue Shopping</a>
@@ -98,16 +97,20 @@
                 const userSection = document.getElementById('userSection');
                 
                 if (data.authenticated) {
-                    const username = data.user?.username || sessionStorage.getItem('username');
+                    const username = data.user?.username;
                     userSection.innerHTML = `
                         <span class="username">Welcome, ${username}</span>
                         <a href="#" onclick="logout()" class="logout-btn">Logout</a>
                     `;
 
-                    // Update order details
                     document.getElementById('customerName').textContent = username;
-                    const orderTotal = sessionStorage.getItem('orderTotal');
-                    document.getElementById('orderTotal').textContent = orderTotal || 'N/A';
+                    
+                    const total = sessionStorage.getItem('orderTotal');
+                    document.getElementById('orderTotal').textContent = 
+                        total ? parseFloat(total).toFixed(2) : 'N/A';
+                    
+                    const orderId = sessionStorage.getItem('orderId');
+                    document.getElementById('orderId').textContent = orderId || 'N/A';
                 } else {
                     window.location.href = '/login.html';
                 }
@@ -118,28 +121,19 @@
 
         async function logout() {
             try {
-                const response = await fetch('/api/auth/logout', {
+                await fetch('/api/auth/logout', {
                     method: 'POST',
                     credentials: 'include'
                 });
-                
                 sessionStorage.clear();
-                
-                if (response.ok) {
-                    window.location.href = '/login.html';
-                } else {
-                    throw new Error('Logout failed');
-                }
+                window.location.href = '/login.html';
             } catch (error) {
                 console.error('Error during logout:', error);
                 window.location.reload();
             }
         }
 
-        // Initialize page
-        document.addEventListener('DOMContentLoaded', async () => {
-            await updateUserSection();
-        });
+        document.addEventListener('DOMContentLoaded', updateUserSection);
     </script>
 </body>
 </html>

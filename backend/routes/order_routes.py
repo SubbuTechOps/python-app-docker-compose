@@ -1,95 +1,76 @@
-from flask import Blueprint, request, jsonify, session  # Added session import
+from flask import Blueprint, request, jsonify, session
+from flask_cors import cross_origin
 from database.db_config import get_db_connection, close_db_connection
-from models.order import Order
 import logging
 
 logger = logging.getLogger(__name__)
-
 order_bp = Blueprint('orders', __name__)
 
-@order_bp.route('/', methods=['POST'])
+@order_bp.route('/orders', methods=['OPTIONS'])
+@cross_origin(supports_credentials=True)
+def handle_options():
+    return '', 204
+
+@order_bp.route('/orders', methods=['POST'])
+@cross_origin(supports_credentials=True)
 def create_order():
-    """
-    Create a new order for a user.
-    Expects JSON with user_id, total_amount, and items (product_id and quantity).
-    """
     connection = None
     try:
-        # Check session first
-        if 'user_id' not in session:
-            logger.warning("Unauthorized order attempt - no session")
-            return jsonify({"message": "Please login to place an order"}), 401
+        user_id = session.get('user_id')
+        if not user_id:
+            return jsonify({"message": "User not authenticated"}), 401
 
         data = request.get_json()
-        if not data:
-            logger.warning("No data provided in order request")
-            return jsonify({"message": "No data provided"}), 400
-
-        user_id = data.get('user_id')
-        total_amount = data.get('total_amount')
-        items = data.get('items')
-
-        # Validate required fields
-        if not user_id or not total_amount or not items:
-            logger.warning("Missing required fields in order data")
-            return jsonify({"message": "user_id, total_amount, and items are required"}), 400
-
-        # Verify user_id matches session
-        if int(user_id) != int(session['user_id']):
-            logger.warning(f"User ID mismatch: {user_id} vs {session['user_id']}")
-            return jsonify({"message": "Invalid user session"}), 401
+        if not data or 'items' not in data:
+            return jsonify({"message": "Invalid request data"}), 400
 
         connection = get_db_connection()
-        if not connection:
-            logger.error("Database connection failed")
-            return jsonify({"message": "Database connection failed"}), 500
+        cursor = connection.cursor(dictionary=True)
 
-        cursor = connection.cursor()
+        # Calculate total and store current prices
+        total_amount = 0
+        order_items = []
+        for item in data['items']:
+            cursor.execute("SELECT price FROM products WHERE id = %s", (item['product_id'],))
+            product = cursor.fetchone()
+            if product:
+                price = float(product['price'])
+                quantity = item['quantity']
+                total_amount += price * quantity
+                order_items.append({
+                    'product_id': item['product_id'],
+                    'quantity': quantity,
+                    'price_at_time': price
+                })
 
-        # Verify cart has items
-        cursor.execute("""
-            SELECT COUNT(*) FROM cart_items 
-            WHERE user_id = %s
-        """, (user_id,))
-        cart_count = cursor.fetchone()[0]
-        
-        if cart_count == 0:
-            logger.warning(f"Empty cart for user {user_id}")
-            return jsonify({"message": "Cart is empty"}), 400
-
-        # Create the order
-        cursor.execute("""
-            INSERT INTO orders (user_id, total_amount) 
-            VALUES (%s, %s)
-        """, (user_id, total_amount))
+        cursor.execute(
+            "INSERT INTO orders (user_id, total_amount, status) VALUES (%s, %s, %s)",
+            (user_id, total_amount, 'pending')
+        )
         order_id = cursor.lastrowid
 
-        # Insert order items
-        for item in items:
-            cursor.execute("""
-                INSERT INTO order_items (order_id, product_id, quantity)
-                VALUES (%s, %s, %s)
-            """, (order_id, item['product_id'], item['quantity']))
+        for item in order_items:
+            cursor.execute(
+                """INSERT INTO order_items 
+                   (order_id, product_id, quantity, price_at_time) 
+                   VALUES (%s, %s, %s, %s)""",
+                (order_id, item['product_id'], item['quantity'], item['price_at_time'])
+            )
 
-        # Clear the user's cart
         cursor.execute("DELETE FROM cart_items WHERE user_id = %s", (user_id,))
-
-        connection.commit()
-        logger.info(f"Order {order_id} created successfully for user {user_id}")
         
+        connection.commit()
         return jsonify({
-            "message": "Order created successfully",
-            "order_id": order_id
+            "message": "Order created",
+            "order_id": order_id,
+            "total_amount": total_amount
         }), 201
 
     except Exception as e:
-        logger.error(f"Error creating order: {str(e)}")
+        logger.error(f"Order creation failed: {str(e)}")
         if connection:
             connection.rollback()
-        return jsonify({
-            "message": "Failed to create order", 
-            "error": str(e)
-        }), 500
+        return jsonify({"message": str(e)}), 500
     finally:
         if connection:
             close_db_connection(connection)

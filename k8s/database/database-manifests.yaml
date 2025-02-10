@@ -1,0 +1,141 @@
+# Database PVC
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mysql-pvc
+  namespace: shopeasy-dev
+spec:
+  storageClassName: gp2
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+
+---
+# Database Secrets
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mysql-root-credentials
+  namespace: shopeasy-dev
+type: Opaque
+stringData:
+  password: "admin@1234"
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: db-credentials
+  namespace: shopeasy-dev
+type: Opaque
+stringData:
+  username: "subbu"
+  password: "admin@1234"
+
+---
+# MySQL Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ecommerce-db
+  namespace: shopeasy-dev
+  labels:
+    app: ecommerce
+    tier: database
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ecommerce
+      tier: database
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: ecommerce
+        tier: database
+    spec:
+      containers:
+      - name: mysql
+        image: mysql:8.0
+        ports:
+        - containerPort: 3306
+          name: mysql
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mysql-root-credentials
+              key: password
+        - name: MYSQL_DATABASE
+          value: "ecommerce"
+        - name: MYSQL_USER
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: username
+        - name: MYSQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: password
+        volumeMounts:
+        - name: mysql-persistent-storage
+          mountPath: /var/lib/mysql
+        - name: mysql-initdb
+          mountPath: /docker-entrypoint-initdb.d
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        livenessProbe:
+          exec:
+            command: 
+            - /bin/bash
+            - -c
+            - mysqladmin ping -h localhost -u$MYSQL_USER -p$MYSQL_PASSWORD
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 5
+        readinessProbe:
+          exec:
+            command:
+            - /bin/bash
+            - -c
+            - mysql -h localhost -u$MYSQL_USER -p$MYSQL_PASSWORD -e 'SELECT 1'
+          initialDelaySeconds: 5
+          periodSeconds: 2
+          timeoutSeconds: 1
+      volumes:
+      - name: mysql-persistent-storage
+        persistentVolumeClaim:
+          claimName: mysql-pvc
+      - name: mysql-initdb
+        configMap:
+          name: mysql-initdb-config
+
+---
+# MySQL Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: ecommerce-db
+  namespace: shopeasy-dev
+  labels:
+    app: ecommerce
+    tier: database
+spec:
+  ports:
+  - port: 3306
+    targetPort: mysql
+  selector:
+    app: ecommerce
+    tier: database
+  type: ClusterIP

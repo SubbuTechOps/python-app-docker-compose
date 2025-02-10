@@ -18,18 +18,14 @@
                 <a href="/index.html">Home</a>
                 <a href="/catalog.html">Catalog</a>
                 <a href="/cart.html">Cart</a>
-                <div id="userSection" class="user-section">
-                    <!-- User info will be dynamically inserted here -->
-                </div>
+                <div id="userSection" class="user-section"></div>
             </nav>
         </div>
     </header>
     <main>
         <section class="cart-section">
             <h2>Your Cart</h2>
-            <div class="cart-grid" id="cartItems">
-                <!-- Cart items will be loaded here -->
-            </div>
+            <div class="cart-grid" id="cartItems"></div>
             <div class="cart-total-section">
                 <h3 id="cartTotal" class="price">Cart Total: $0.00</h3>
                 <button onclick="placeOrder()" class="place-order-btn">Place Order</button>
@@ -37,22 +33,19 @@
         </section>
     </main>
     <footer>
-
         <div class="developer-banner">
             <div class="developer-text">
                 Developed By <span class="developer-name">SubbuTechOps</span>
             </div>
         </div>
-        
         <p>&copy; 2024 ShopEasy. All rights reserved.</p>
     </footer>
+    
     <script>
-        // Check authentication status
+        // Check user authentication status
         async function checkAuthentication() {
             try {
-                const response = await fetch('/api/auth/status', {
-                    credentials: 'include'
-                });
+                const response = await fetch('/api/auth/status', { credentials: 'include' });
                 const data = await response.json();
                 return data.authenticated;
             } catch (error) {
@@ -64,17 +57,13 @@
         // Update user section
         async function updateUserSection() {
             try {
-                const response = await fetch('/api/auth/status', {
-                    credentials: 'include'
-                });
+                const response = await fetch('/api/auth/status', { credentials: 'include' });
                 const data = await response.json();
-                
                 const userSection = document.getElementById('userSection');
-                
+
                 if (data.authenticated) {
-                    const username = data.user?.username || sessionStorage.getItem('username');
                     userSection.innerHTML = `
-                        <span class="username">Welcome, ${username}</span>
+                        <span class="username">Welcome, ${data.user?.username}</span>
                         <a href="#" onclick="logout()" class="logout-btn">Logout</a>
                     `;
                 } else {
@@ -87,22 +76,13 @@
             } catch (error) {
                 console.error('Error updating user section:', error);
                 sessionStorage.clear();
-                document.getElementById('userSection').innerHTML = `
-                    <a href="/login.html">Login</a>
-                    <a href="/signup.html">Sign Up</a>
-                `;
             }
         }
 
         // Load cart items
         async function loadCart() {
             try {
-                const response = await fetch('/api/cart', {
-                    credentials: 'include',
-                    headers: {
-                        'Accept': 'application/json'
-                    }
-                });
+                const response = await fetch('/api/cart', { credentials: 'include', headers: { 'Accept': 'application/json' } });
 
                 if (response.status === 401) {
                     sessionStorage.setItem('returnTo', '/cart.html');
@@ -117,7 +97,7 @@
                 if (data.cart_items && data.cart_items.length > 0) {
                     let total = 0;
                     cartItemsDiv.innerHTML = '';
-                    
+
                     data.cart_items.forEach(item => {
                         total += item.price * item.quantity;
                         cartItemsDiv.innerHTML += `
@@ -130,6 +110,7 @@
                             </div>
                         `;
                     });
+
                     cartTotalDiv.innerHTML = `Cart Total: $${total.toFixed(2)}`;
                 } else {
                     cartItemsDiv.innerHTML = "<p class='empty-cart'>Your cart is empty.</p>";
@@ -137,106 +118,52 @@
                 }
             } catch (error) {
                 console.error("Error loading cart:", error);
-                cartItemsDiv.innerHTML = "<p class='error-message'>Failed to load cart.</p>";
+                document.getElementById("cartItems").innerHTML = "<p class='error-message'>Failed to load cart.</p>";
             }
         }
 
-        // Helper function to get Font Awesome icon class (same as catalog)
-function getProductIcon(productName) {
-    const name = productName.toLowerCase();
-    if (name.includes('laptop') || name.includes('macbook')) {
-        return 'fa-laptop';
-    } else if (name.includes('phone') || name.includes('iphone')) {
-        return 'fa-mobile-alt';
-    } else if (name.includes('tablet') || name.includes('ipad')) {
-        return 'fa-tablet-alt';
-    } else if (name.includes('watch')) {
-        return 'fa-clock';
-    } else if (name.includes('airpods') || name.includes('headphones')) {
-        return 'fa-headphones';
-    } else if (name.includes('playstation') || name.includes('nintendo')) {
-        return 'fa-gamepad';
-    }
-    return 'fa-box'; // Default icon
-}
-
+        // Remove item from cart
         async function removeFromCart(productId) {
             try {
                 const response = await fetch('/api/cart', {
                     method: 'DELETE',
                     credentials: 'include',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json'
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ product_id: productId })
                 });
 
-                if (response.status === 401) {
-                    sessionStorage.setItem('returnTo', '/cart.html');
-                    window.location.href = '/login.html';
-                    return;
-                }
-
-                if (!response.ok) {
+                if (response.ok) {
+                    await loadCart();
+                } else {
                     throw new Error('Failed to remove item from cart');
                 }
-
-                // Reload cart after successful removal
-                await loadCart();
             } catch (error) {
                 console.error('Error removing item from cart:', error);
                 alert('Failed to remove item. Please try again.');
             }
         }
 
-
         // Place order function
         async function placeOrder() {
             try {
-                const isAuthenticated = await checkAuthentication();
-                if (!isAuthenticated) {
-                    sessionStorage.setItem('returnTo', '/cart.html');
-                    window.location.href = '/login.html';
-                    return;
-                }
-
-                const userId = sessionStorage.getItem('user_id');
-                if (!userId) {
-                    alert('Session error. Please login again.');
-                    window.location.href = '/login.html';
-                    return;
-                }
-
-                const cartResponse = await fetch('/api/cart', {
-                    credentials: 'include'
-                });
-
+                const cartResponse = await fetch('/api/cart', { credentials: 'include' });
                 const cartData = await cartResponse.json();
-                
-                if (!cartData.cart_items || cartData.cart_items.length === 0) {
+
+                if (!cartData.cart_items?.length) {
                     alert('Your cart is empty');
                     return;
                 }
 
-                const totalAmount = cartData.cart_items.reduce((sum, item) => 
-                    sum + (parseFloat(item.price) * item.quantity), 0);
-                
-                // Store order total for success page
-                sessionStorage.setItem('orderTotal', totalAmount.toFixed(2));
-                
                 const orderData = {
-                    user_id: parseInt(userId),
-                    total_amount: totalAmount,
                     items: cartData.cart_items.map(item => ({
                         product_id: parseInt(item.product_id),
                         quantity: parseInt(item.quantity)
                     }))
                 };
 
-                console.log('Sending order data:', orderData);
+                console.log('Order data:', orderData); // Debug log
 
-                const orderResponse = await fetch('/api/orders', {
+                const orderResponse = await fetch('/api/orders', {  // Remove trailing slash
                     method: 'POST',
                     credentials: 'include',
                     headers: {
@@ -245,34 +172,26 @@ function getProductIcon(productName) {
                     body: JSON.stringify(orderData)
                 });
 
-                if (orderResponse.ok) {
-                    alert('Order placed successfully!');
-                    window.location.href = '/order-success.html';
-                } else {
-                    const errorData = await orderResponse.json();
-                    throw new Error(errorData.message || 'Failed to place order');
+                const responseData = await orderResponse.json();
+                
+                if (!orderResponse.ok) {
+                    throw new Error(responseData.message || 'Failed to place order');
                 }
+
+                sessionStorage.setItem('orderId', responseData.order_id);
+                sessionStorage.setItem('orderTotal', responseData.total_amount);
+                window.location.href = '/order-success.html';
             } catch (error) {
-                console.error('Error placing order:', error);
-                alert('Failed to place order. Please try again.');
+                console.error('Error:', error);
+                alert('Failed to place order: ' + error.message);
             }
         }
-
         // Logout function
         async function logout() {
             try {
-                const response = await fetch('/api/auth/logout', {
-                    method: 'POST',
-                    credentials: 'include'
-                });
-                
+                await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
                 sessionStorage.clear();
-                
-                if (response.ok) {
-                    window.location.href = '/login.html';
-                } else {
-                    throw new Error('Logout failed');
-                }
+                window.location.href = '/login.html';
             } catch (error) {
                 console.error('Error during logout:', error);
                 window.location.reload();
