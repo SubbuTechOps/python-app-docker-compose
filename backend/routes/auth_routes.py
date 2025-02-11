@@ -1,27 +1,55 @@
-from flask import Blueprint, request, jsonify, session, make_response, redirect, url_for
+from flask import Blueprint, request, jsonify, session, make_response
 from models.user import User
 import logging
 import bcrypt
 from functools import wraps
+from monitoring.prometheus_metrics import (
+    USER_LOGIN_COUNT,
+    USER_SESSION_COUNT,
+    REQUEST_LATENCY,
+    REQUEST_COUNT
+)
+import time
 
 logger = logging.getLogger(__name__)
-
 auth_bp = Blueprint('auth', __name__)
 
-# Add admin role check decorator
-def admin_required(view_function):
-    @wraps(view_function)
+def track_auth_metrics(func):
+    @wraps(func)
     def wrapper(*args, **kwargs):
-        logger.debug(f"Checking admin rights - Current session: {session}")
-        if 'user_id' not in session:
-            return jsonify({"message": "Authentication required"}), 401
-        if not session.get('is_admin', False):
-            return jsonify({"message": "Admin privileges required"}), 403
-        return view_function(*args, **kwargs)
+        start_time = time.time()
+        endpoint = request.endpoint
+        method = request.method
+        
+        try:
+            response = func(*args, **kwargs)
+            status_code = response[1] if isinstance(response, tuple) else 200
+            
+            # Track request metrics
+            REQUEST_COUNT.labels(
+                method=method,
+                endpoint=endpoint,
+                status=status_code
+            ).inc()
+            
+            # Track latency
+            REQUEST_LATENCY.labels(
+                method=method,
+                endpoint=endpoint
+            ).observe(time.time() - start_time)
+            
+            return response
+        except Exception as e:
+            REQUEST_COUNT.labels(
+                method=method,
+                endpoint=endpoint,
+                status=500
+            ).inc()
+            raise e
     return wrapper
 
-# Add check auth status route
 @auth_bp.route('/status', methods=['GET'])
+@track_auth_metrics
 def check_auth_status():
     """Check if user is authenticated"""
     logger.debug(f"Current session: {session}")
@@ -36,6 +64,7 @@ def check_auth_status():
     return jsonify({"authenticated": False}), 401
 
 @auth_bp.route('/signup', methods=['POST'])
+@track_auth_metrics
 def signup():
     try:
         if not request.is_json:
@@ -53,32 +82,29 @@ def signup():
         
         user = User.create_user(username, password)
         
-        # Set session
-        session.clear()  # Clear any existing session first
+        session.clear()
         session['username'] = username
         session['user_id'] = user.user_id
         session.permanent = True
         
-        logger.debug(f"Session after signup: {session}")
+        USER_SESSION_COUNT.inc()
         
-        response = jsonify({
+        return jsonify({
             "message": "User registered successfully.", 
             "user": user.to_dict()
-        })
-        return response, 201
+        }), 201
     
     except Exception as e:
         logger.error(f"Error in signup: {str(e)}", exc_info=True)
         return jsonify({
-            "message": "An error occurred during signup.", 
+            "message": "An error occurred during signup.",
             "error": str(e)
         }), 500
 
 @auth_bp.route('/login', methods=['POST'])
+@track_auth_metrics
 def login():
     try:
-        logger.debug(f"Login attempt - Session before: {session}")
-        
         if not request.is_json:
             return jsonify({"message": "Invalid request format. JSON required."}), 400
         
@@ -87,112 +113,51 @@ def login():
         password = data.get('password')
         
         if not username or not password:
+            USER_LOGIN_COUNT.labels(status='failed').inc()
             return jsonify({"message": "Username and password are required."}), 400
         
         user = User.authenticate(username, password)
         if user:
-            # Clear any existing session first
             session.clear()
-            
-            # Set new session
             session['username'] = username
             session['user_id'] = user.user_id
-            session['is_admin'] = user.is_admin  # Add admin status to session
+            session['is_admin'] = user.is_admin
             session.permanent = True
             
-            logger.debug(f"Login successful - Session after: {session}")
+            USER_LOGIN_COUNT.labels(status='success').inc()
+            USER_SESSION_COUNT.inc()
             
-            response = jsonify({
-                "message": "Login successful.", 
+            return jsonify({
+                "message": "Login successful.",
                 "user": user.to_dict()
-            })
-            return response, 200
+            }), 200
         
-        logger.warning(f"Login failed for username: {username}")
+        USER_LOGIN_COUNT.labels(status='failed').inc()
         return jsonify({"message": "Invalid credentials."}), 401
     
     except Exception as e:
+        USER_LOGIN_COUNT.labels(status='failed').inc()
         logger.error(f"Error in login: {str(e)}", exc_info=True)
         return jsonify({
-            "message": "An error occurred during login.", 
+            "message": "An error occurred during login.",
             "error": str(e)
         }), 500
 
 @auth_bp.route('/logout', methods=['POST'])
+@track_auth_metrics
 def logout():
     try:
-        logger.debug(f"Logout attempt - Session before: {session}")
+        if 'user_id' in session:
+            USER_SESSION_COUNT.dec()
         session.clear()
-        logger.debug(f"Logout successful - Session after: {session}")
         
         response = make_response(jsonify({"message": "Logout successful."}))
-        response.delete_cookie('session')  # Delete the session cookie
+        response.delete_cookie('session')
         return response, 200
     
     except Exception as e:
         logger.error(f"Error in logout: {str(e)}", exc_info=True)
         return jsonify({
-            "message": "An error occurred during logout.", 
+            "message": "An error occurred during logout.",
             "error": str(e)
         }), 500
-
-@auth_bp.route('/admin/update-passwords', methods=['POST'])
-@admin_required
-def admin_update_passwords():
-    """Admin route to update plain text passwords with bcrypt hashes"""
-    try:
-        logger.info("Starting password hash update process")
-        updated_count = 0
-        skipped_count = 0
-        
-        # Get all users using the User model
-        users = User.get_all_users()
-        
-        for user in users:
-            # Skip already hashed passwords
-            if user.password.startswith('$2b$'):
-                logger.debug(f"Skipping already hashed password for user: {user.username}")
-                skipped_count += 1
-                continue
-                
-            try:
-                # Hash the plain text password
-                hashed = bcrypt.hashpw(user.password.encode('utf-8'), bcrypt.gensalt())
-                
-                # Update the user's password
-                User.update_password(user.user_id, hashed.decode('utf-8'))
-                logger.debug(f"Updated password for user: {user.username}")
-                updated_count += 1
-                
-            except Exception as e:
-                logger.error(f"Error updating password for user {user.username}: {str(e)}")
-                continue
-        
-        logger.info(f"Password update completed. Updated: {updated_count}, Skipped: {skipped_count}")
-        
-        return jsonify({
-            'success': True,
-            'message': 'Password update completed',
-            'stats': {
-                'total_processed': len(users),
-                'updated': updated_count,
-                'skipped': skipped_count
-            }
-        }), 200
-        
-    except Exception as e:
-        logger.error(f"Error in admin password update: {str(e)}", exc_info=True)
-        return jsonify({
-            'success': False,
-            'message': f'Error updating passwords: {str(e)}'
-        }), 500
-
-# Add authentication middleware
-def login_required(view_function):
-    @wraps(view_function)
-    def wrapper(*args, **kwargs):
-        logger.debug(f"Checking authentication - Current session: {session}")
-        if 'user_id' not in session:
-            return jsonify({"message": "Authentication required"}), 401
-        return view_function(*args, **kwargs)
-    return wrapper

@@ -1,23 +1,39 @@
-import psutil
 from flask import Blueprint, jsonify
 from database.db_config import check_db_connection
+import psutil
+import time
+from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 
 health_bp = Blueprint('health', __name__)
 
-@health_bp.route('/health/live')
+@health_bp.route('/metrics')
+def metrics():
+    """Endpoint for Prometheus metrics"""
+    return generate_latest(), 200, {'Content-Type': CONTENT_TYPE_LATEST}
+
+@health_bp.route('/live')
 def liveness():
+    """Liveness probe endpoint"""
     return jsonify({
         "status": "healthy",
-        "cpu_usage": psutil.cpu_percent(),
-        "memory_usage": psutil.virtual_memory().percent
-    })
+        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
+    }), 200
 
-@health_bp.route('/health/ready')
+@health_bp.route('/ready')
 def readiness():
+    """Readiness probe endpoint"""
     db_status = check_db_connection()
+    
     checks = {
         "database": "healthy" if db_status else "unhealthy",
-        "disk_usage": psutil.disk_usage('/').percent,
-        "memory_available": psutil.virtual_memory().available / (1024 * 1024)  # MB
+        "memory_usage": psutil.virtual_memory().percent,
+        "cpu_usage": psutil.cpu_percent(),
+        "disk_usage": psutil.disk_usage('/').percent
     }
-    return jsonify(checks), 200 if db_status else 503
+    
+    is_ready = db_status and checks["memory_usage"] < 90
+    
+    return jsonify({
+        "status": "ready" if is_ready else "not ready",
+        "checks": checks
+    }), 200 if is_ready else 503

@@ -7,6 +7,9 @@ from flask_cors import CORS
 from flask_session import Session
 from dotenv import load_dotenv
 from functools import wraps
+from monitoring.middleware import MonitoringMiddleware
+from monitoring.health_routes import health_bp
+from prometheus_client import start_http_server
 
 # Configure logging
 log_format = "%(asctime)s - %(levelname)s - %(message)s"
@@ -31,6 +34,14 @@ def login_required(f):
 
 def create_app():
     app = Flask(__name__, static_folder=FRONTEND_PATH, static_url_path="")
+
+    # Start Prometheus metrics server
+    metrics_port = int(os.getenv("METRICS_PORT", 9090))
+    start_http_server(metrics_port)
+    logger.info(f"Started Prometheus metrics server on port {metrics_port}")
+
+    # Apply monitoring middleware
+    app.wsgi_app = MonitoringMiddleware(app.wsgi_app)
 
     # Session Configuration
     app.secret_key = os.getenv('SECRET_KEY', 'default_secret_key')
@@ -62,6 +73,7 @@ def create_app():
     def log_request():
         logger.info(f"🔍 Incoming request: {request.method} {request.path}")
 
+    # Initialize Database
     try:
         from database.db_config import check_db_connection, initialize_pool
 
@@ -81,44 +93,7 @@ def create_app():
     except Exception as e:
         logger.error(f"🚨 Failed to check database connection: {str(e)}")
 
-    @app.route("/api/health")
-    def health_check():
-        return jsonify({
-            "status": "healthy",
-            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-            "uptime": int(time.time() - start_time)
-        }), 200
-
-    @app.route("/api/ready")
-    def readiness_check():
-        try:
-            from database.db_config import check_db_connection
-
-            checks = {
-                "app": "ready",
-                "uptime": int(time.time() - start_time),
-                "session_directory": os.access(session_file_dir, os.W_OK)
-            }
-
-            db_status = check_db_connection()
-            checks["database"] = db_status
-
-            logger.debug(f"🔍 Readiness Check: {checks}")
-
-            is_ready = db_status and checks["session_directory"]
-            return jsonify({
-                "status": "ready" if is_ready else "not ready",
-                "checks": checks
-            }), 200 if is_ready else 503
-
-        except Exception as e:
-            logger.error(f"🚨 Readiness check failed: {e}")
-            return jsonify({
-                "status": "error",
-                "message": str(e)
-            }), 503
-
-    # Register Blueprints with updated prefixes
+    # Register Blueprints
     try:
         from routes.auth_routes import auth_bp
         from routes.product_routes import product_bp
@@ -128,7 +103,8 @@ def create_app():
         app.register_blueprint(auth_bp, url_prefix="/api/auth")
         app.register_blueprint(product_bp, url_prefix="/api")
         app.register_blueprint(cart_bp, url_prefix="/api")
-        app.register_blueprint(order_bp, url_prefix="/api")  # Updated from "/api/orders"
+        app.register_blueprint(order_bp, url_prefix="/api")
+        app.register_blueprint(health_bp, url_prefix="/api/health")
         logger.info("✅ All blueprints registered successfully!")
 
     except Exception as e:
