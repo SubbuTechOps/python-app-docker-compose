@@ -11,4 +11,5 @@ spec:
       targetPort: 9090
       protocol: TCP
   selector:
-    app: prometheus
+    app.kubernetes.io/name: prometheus
+    prometheus: prometheus-kube-prometheus-prometheus  

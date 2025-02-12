@@ -7,9 +7,8 @@ from flask_cors import CORS
 from flask_session import Session
 from dotenv import load_dotenv
 from functools import wraps
-from monitoring.middleware import MonitoringMiddleware
+from monitoring.middleware import MonitoringMiddleware, REGISTRY
 from monitoring.health_routes import health_bp
-from prometheus_client import start_http_server
 
 # Configure logging
 log_format = "%(asctime)s - %(levelname)s - %(message)s"
@@ -35,23 +34,16 @@ def login_required(f):
 def create_app():
     app = Flask(__name__, static_folder=FRONTEND_PATH, static_url_path="")
 
-    # Start Prometheus metrics server only in the main process
-    metrics_port = int(os.getenv("METRICS_PORT", 9090))
-    if os.environ.get("RUN_MAIN") == "true":  # Ensures only the main process starts the server
-        start_http_server(metrics_port)
-        logger.info(f"✅ Prometheus metrics server started on port {metrics_port}")
-
     # Use the WSGI middleware approach for metrics instead of a separate server
     from prometheus_client import make_wsgi_app
     from werkzeug.middleware.dispatcher import DispatcherMiddleware
     
-    # Apply monitoring middleware
-    app.wsgi_app = MonitoringMiddleware(app.wsgi_app)
-
-    # Attach Prometheus /metrics endpoint
-     app.wsgi_app = DispatcherMiddleware(app.wsgi_app, {
-        '/api/metrics': make_wsgi_app()
-    })
+    # Apply middleware stack with global registry
+    app.wsgi_app = MonitoringMiddleware(
+        DispatcherMiddleware(app.wsgi_app, {
+            '/api/metrics': make_wsgi_app(REGISTRY)
+        })
+    )
 
     # Session Configuration
     app.secret_key = os.getenv('SECRET_KEY', 'default_secret_key')

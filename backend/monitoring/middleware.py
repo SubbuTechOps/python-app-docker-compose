@@ -1,22 +1,54 @@
 from functools import wraps
 from flask import request, g
 import time
-from .prometheus_metrics import REQUEST_COUNT, REQUEST_LATENCY
+from prometheus_client import Counter, Histogram, CollectorRegistry
+
+# Create a global registry
+REGISTRY = CollectorRegistry()
+
+# Define metrics with the global registry
+REQUEST_LATENCY = Histogram(
+    'http_request_duration_seconds',
+    'HTTP request latency in seconds',
+    ['method', 'endpoint'],
+    registry=REGISTRY
+)
+
+REQUEST_COUNT = Counter(
+    'http_request_total',
+    'Total HTTP requests',
+    ['method', 'endpoint', 'status'],
+    registry=REGISTRY
+)
+
+USER_LOGIN_COUNT = Counter(
+    'user_login_total',
+    'Total user login attempts',
+    ['status'],
+    registry=REGISTRY
+)
+
+DB_QUERY_LATENCY = Histogram(
+    'db_query_duration_seconds',
+    'Database query latency in seconds',
+    ['query_type'],
+    registry=REGISTRY
+)
 
 class MonitoringMiddleware:
     def __init__(self, app):
         self.app = app
-
+        
     def __call__(self, environ, start_response):
         path = environ.get('PATH_INFO', '')
         method = environ.get('REQUEST_METHOD', '')
         
         # Skip metrics endpoint to avoid recursion
-        if path == '/metrics':
+        if path == '/api/metrics':  # Updated to match your API path
             return self.app(environ, start_response)
-
+            
         start_time = time.time()
-
+        
         def custom_start_response(status, headers, exc_info=None):
             status_code = int(status.split()[0])
             
@@ -35,14 +67,13 @@ class MonitoringMiddleware:
             ).observe(duration)
             
             return start_response(status, headers, exc_info)
-
+            
         return self.app(environ, custom_start_response)
 
 def track_db_query(func):
     """Decorator to track database query metrics"""
     @wraps(func)
     def wrapper(*args, **kwargs):
-        from .prometheus_metrics import DB_QUERY_LATENCY
         start_time = time.time()
         try:
             result = func(*args, **kwargs)
@@ -58,7 +89,6 @@ def track_user_action(action_type):
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
-            from .prometheus_metrics import USER_LOGIN_COUNT
             try:
                 result = func(*args, **kwargs)
                 if action_type == 'login':
@@ -72,46 +102,3 @@ def track_user_action(action_type):
                 raise e
         return wrapper
     return decorator
-
-    from prometheus_client import Counter, Histogram
-
-# Define metrics
-REQUEST_LATENCY = Histogram(
-    'http_request_duration_seconds',
-    'HTTP request latency in seconds',
-    ['method', 'endpoint']
-)
-
-REQUEST_COUNT = Counter(
-    'http_request_total',
-    'Total HTTP requests',
-    ['method', 'endpoint', 'status']
-)
-
-class MonitoringMiddleware:
-    def __call__(self, environ, start_response):
-        if environ.get('PATH_INFO') == '/api/metrics':
-            return self.app(environ, start_response)
-
-        start_time = time.time()
-        method = environ.get('REQUEST_METHOD', '')
-        path = environ.get('PATH_INFO', '')
-
-        def custom_start_response(status, headers, exc_info=None):
-            duration = time.time() - start_time
-            status_code = int(status.split(' ')[0])
-            
-            REQUEST_COUNT.labels(
-                method=method,
-                endpoint=path,
-                status=status_code
-            ).inc()
-            
-            REQUEST_LATENCY.labels(
-                method=method,
-                endpoint=path
-            ).observe(duration)
-            
-            return start_response(status, headers, exc_info)
-
-        return self.app(environ, custom_start_response)
