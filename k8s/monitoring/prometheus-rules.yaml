@@ -1,0 +1,36 @@
+# prometheus-rules.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: ecommerce-alerts
+  namespace: monitoring
+spec:
+  groups:
+  - name: ecommerce
+    rules:
+    - alert: HighErrorRate
+      expr: sum(rate(http_requests_total{status=~"5.*"}[5m])) / sum(rate(http_requests_total[5m])) > 0.05
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: High error rate detected
+        description: Error rate is above 5% for 5 minutes
+
+    - alert: SlowResponseTime
+      expr: rate(http_request_duration_seconds_sum[5m]) / rate(http_request_duration_seconds_count[5m]) > 1
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: Slow response time detected
+        description: Average response time is above 1 second
+
+    - alert: HighResourceUsage
+      expr: container_memory_usage_bytes{namespace="shopeasy-dev"} / container_memory_working_set_bytes{namespace="shopeasy-dev"} > 0.85
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: High resource usage detected
+        description: Memory usage is above 85%

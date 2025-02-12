@@ -19,3 +19,5 @@ Flask-Cors==3.0.10
 
 # Monitoring and Debug
 requests>=2.31.0
+prometheus_client==0.17.1
+psutil==5.9.0  

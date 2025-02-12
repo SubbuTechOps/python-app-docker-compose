@@ -72,3 +72,46 @@ def track_user_action(action_type):
                 raise e
         return wrapper
     return decorator
+
+    from prometheus_client import Counter, Histogram
+
+# Define metrics
+REQUEST_LATENCY = Histogram(
+    'http_request_duration_seconds',
+    'HTTP request latency in seconds',
+    ['method', 'endpoint']
+)
+
+REQUEST_COUNT = Counter(
+    'http_request_total',
+    'Total HTTP requests',
+    ['method', 'endpoint', 'status']
+)
+
+class MonitoringMiddleware:
+    def __call__(self, environ, start_response):
+        if environ.get('PATH_INFO') == '/api/metrics':
+            return self.app(environ, start_response)
+
+        start_time = time.time()
+        method = environ.get('REQUEST_METHOD', '')
+        path = environ.get('PATH_INFO', '')
+
+        def custom_start_response(status, headers, exc_info=None):
+            duration = time.time() - start_time
+            status_code = int(status.split(' ')[0])
+            
+            REQUEST_COUNT.labels(
+                method=method,
+                endpoint=path,
+                status=status_code
+            ).inc()
+            
+            REQUEST_LATENCY.labels(
+                method=method,
+                endpoint=path
+            ).observe(duration)
+            
+            return start_response(status, headers, exc_info)
+
+        return self.app(environ, custom_start_response)

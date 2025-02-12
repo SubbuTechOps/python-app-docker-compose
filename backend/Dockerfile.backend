@@ -12,15 +12,21 @@ RUN apt-get update && \
     default-libmysqlclient-dev \
     default-mysql-client \
     build-essential \
-    pkg-config && \
+    pkg-config \
+    python3-dev \
+    gcc \
+    mariadb-client && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy and install dependencies
 COPY backend/requirements.txt .  
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy backend application code
+# Copy backend application code and ensure monitoring package is properly set up
 COPY backend/ .
+RUN mkdir -p /app/monitoring && \
+    touch /app/monitoring/__init__.py && \
+    chmod -R 755 /app/monitoring
 
 # Copy frontend files into /app/frontend
 COPY frontend /app/frontend
@@ -38,8 +44,8 @@ RUN useradd -m appuser && \
     chown -R appuser:appuser /app /tmp/flask_sessions
 USER appuser
 
-# Expose the application port
-EXPOSE 5000
+# Expose the application port and metrics port
+EXPOSE 5000 9090
 
 # Add health check
 HEALTHCHECK --interval=30s --timeout=30s --start-period=60s --retries=3 \
@@ -50,7 +56,10 @@ ENV PYTHONPATH=/app \
     FLASK_APP=wsgi:app \
     FLASK_DEBUG=false \
     FRONTEND_PATH=/app/frontend \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    METRICS_PORT=9090 \
+    DB_HOST=ecommerce-db \
+    DB_PORT=3306
 
 # Use entrypoint script to start application
 ENTRYPOINT ["/app/entrypoint.sh"]

@@ -1,0 +1,18 @@
+# service-monitor.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: ecommerce-backend-monitor
+  namespace: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: ecommerce
+      tier: backend
+  endpoints:
+  - port: http
+    path: /api/metrics
+    interval: 15s
+  namespaceSelector:
+    matchNames:
+      - shopeasy-dev

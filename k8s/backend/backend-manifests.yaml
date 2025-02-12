@@ -81,7 +81,7 @@ spec:
           mountPath: /tmp/flask_sessions
         startupProbe:
           httpGet:
-            path: /api/health
+            path: /api/health/health
             port: http
           failureThreshold: 30
           periodSeconds: 10
@@ -89,7 +89,7 @@ spec:
           timeoutSeconds: 10
         readinessProbe:
           httpGet:
-            path: /api/ready
+            path: /api/health/ready
             port: http
           initialDelaySeconds: 60  
           periodSeconds: 15
@@ -98,7 +98,7 @@ spec:
           successThreshold: 1
         livenessProbe:
           httpGet:
-            path: /api/health
+            path: /api/health/live
             port: http
           initialDelaySeconds: 90  
           periodSeconds: 20
