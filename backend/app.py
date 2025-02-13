@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 from functools import wraps
 from prometheus_client import make_wsgi_app
 from werkzeug.middleware.dispatcher import DispatcherMiddleware
-from monitoring.prometheus_metrics import REGISTRY
+from monitoring.prometheus_metrics import REGISTRY, record_request_metrics
 from monitoring.middleware import MonitoringMiddleware
 from monitoring.health_routes import health_bp
 
@@ -108,8 +108,8 @@ def create_app():
 
     @app.after_request
     def after_request(response):
-    """Record metrics after each request"""
-    return record_request_metrics(response)
+        """Record metrics after each request"""
+        return record_request_metrics(response)
 
     # Register Blueprints
     try:

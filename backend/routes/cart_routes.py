@@ -3,7 +3,8 @@ from database.db_config import get_db_connection, close_db_connection
 from monitoring.prometheus_metrics import (
     CART_OPERATIONS,
     track_auth_metrics,
-    record_request_metrics
+    record_request_metrics,
+    track_user_action
 )
 
 cart_bp = Blueprint('cart', __name__)

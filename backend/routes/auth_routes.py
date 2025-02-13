@@ -8,7 +8,8 @@ from monitoring.prometheus_metrics import (
     USER_SESSION_COUNT,
     REQUEST_LATENCY,
     REQUEST_COUNT,
-    track_auth_metrics  # Import it from prometheus_metrics
+    track_auth_metrics,
+    track_user_action 
 )
 import time
 

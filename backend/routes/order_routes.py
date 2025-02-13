@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify, session
 from flask_cors import cross_origin
 from database.db_config import get_db_connection, close_db_connection
-from monitoring.prometheus_metrics import ORDER_COUNT, CART_OPERATIONS, track_order
+from monitoring.prometheus_metrics import ORDER_COUNT, CART_OPERATIONS, track_order, track_user_action
 import logging
 
 logger = logging.getLogger(__name__)

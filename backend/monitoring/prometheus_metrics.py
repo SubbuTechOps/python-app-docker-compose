@@ -82,6 +82,39 @@ def record_request_metrics(response):
         print(f"Error recording metrics: {e}")
         return response
 
+def track_auth_metrics(func):
+    """Decorator to track authentication metrics"""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        start_time = time.time()
+        endpoint = request.endpoint
+        method = request.method
+        
+        try:
+            response = func(*args, **kwargs)
+            status_code = response[1] if isinstance(response, tuple) else 200
+            
+            REQUEST_COUNT.labels(
+                method=method,
+                endpoint=endpoint,
+                status=status_code
+            ).inc()
+            
+            REQUEST_LATENCY.labels(
+                method=method,
+                endpoint=endpoint
+            ).observe(time.time() - start_time)
+            
+            return response
+        except Exception as e:
+            REQUEST_COUNT.labels(
+                method=method,
+                endpoint=endpoint,
+                status=500
+            ).inc()
+            raise e
+    return wrapper
+
 def track_db_query(func):
     """Decorator to track database query metrics"""
     @wraps(func)
@@ -129,3 +162,21 @@ def track_user_action(action_type):
                 raise e
         return wrapper
     return decorator
+
+# List of all exports
+__all__ = [
+    'REGISTRY',
+    'REQUEST_COUNT',
+    'REQUEST_LATENCY',
+    'ORDER_COUNT',
+    'CART_OPERATIONS',
+    'USER_LOGIN_COUNT',
+    'USER_SESSION_COUNT',
+    'DB_CONNECTION_COUNT',
+    'DB_QUERY_LATENCY',
+    'track_auth_metrics',
+    'track_order',
+    'track_db_query',
+    'track_user_action',
+    'record_request_metrics'
+]
