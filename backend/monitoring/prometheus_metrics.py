@@ -1,4 +1,7 @@
-from prometheus_client import Counter, Histogram, Gauge, Summary, CollectorRegistry
+from prometheus_client import Counter, Histogram, Gauge, CollectorRegistry
+from functools import wraps
+from flask import request
+import time
 
 # Create a global registry
 REGISTRY = CollectorRegistry()
@@ -13,7 +16,7 @@ REQUEST_COUNT = Counter(
 
 REQUEST_LATENCY = Histogram(
     'http_request_duration_seconds',
-    'HTTP request latency',
+    'HTTP request latency in seconds',
     ['method', 'endpoint'],
     registry=REGISTRY
 )
@@ -28,7 +31,7 @@ ORDER_COUNT = Counter(
 
 CART_OPERATIONS = Counter(
     'cart_operations_total',
-    'Cart operations',
+    'Cart operations count',
     ['operation'],  # add, remove, checkout
     registry=REGISTRY
 )
@@ -61,17 +64,68 @@ USER_LOGIN_COUNT = Counter(
     registry=REGISTRY
 )
 
-# Product Metrics
-PRODUCT_VIEW_COUNT = Counter(
-    'product_views_total',
-    'Total product views',
-    ['product_id'],
-    registry=REGISTRY
-)
+def record_request_metrics(response):
+    """Record request metrics for any endpoint"""
+    try:
+        method = request.method
+        endpoint = request.endpoint or request.path
+        status = response.status_code if hasattr(response, 'status_code') else 500
+        
+        REQUEST_COUNT.labels(
+            method=method,
+            endpoint=endpoint,
+            status=status
+        ).inc()
+        
+        return response
+    except Exception as e:
+        print(f"Error recording metrics: {e}")
+        return response
 
-STOCK_LEVEL = Gauge(
-    'product_stock_level',
-    'Current stock level',
-    ['product_id'],
-    registry=REGISTRY
-)
+def track_db_query(func):
+    """Decorator to track database query metrics"""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        start_time = time.time()
+        try:
+            result = func(*args, **kwargs)
+            query_type = 'select' if func.__name__.startswith('get') else 'other'
+            DB_QUERY_LATENCY.labels(query_type=query_type).observe(time.time() - start_time)
+            return result
+        except Exception as e:
+            raise e
+    return wrapper
+
+def track_order(func):
+    """Decorator to track order metrics"""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            result = func(*args, **kwargs)
+            status_code = result[1] if isinstance(result, tuple) else 200
+            ORDER_COUNT.labels(status='success' if status_code == 201 else 'failed').inc()
+            return result
+        except Exception as e:
+            ORDER_COUNT.labels(status='failed').inc()
+            raise e
+    return wrapper
+
+def track_user_action(action_type):
+    """Decorator to track user actions"""
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            try:
+                result = func(*args, **kwargs)
+                if action_type == 'login':
+                    status_code = result[1] if isinstance(result, tuple) else 200
+                    USER_LOGIN_COUNT.labels(
+                        status='success' if status_code == 200 else 'failed'
+                    ).inc()
+                return result
+            except Exception as e:
+                if action_type == 'login':
+                    USER_LOGIN_COUNT.labels(status='failed').inc()
+                raise e
+        return wrapper
+    return decorator

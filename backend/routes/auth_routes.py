@@ -7,46 +7,13 @@ from monitoring.prometheus_metrics import (
     USER_LOGIN_COUNT,
     USER_SESSION_COUNT,
     REQUEST_LATENCY,
-    REQUEST_COUNT
+    REQUEST_COUNT,
+    track_auth_metrics  # Import it from prometheus_metrics
 )
 import time
 
 logger = logging.getLogger(__name__)
 auth_bp = Blueprint('auth', __name__)
-
-def track_auth_metrics(func):
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        start_time = time.time()
-        endpoint = request.endpoint
-        method = request.method
-        
-        try:
-            response = func(*args, **kwargs)
-            status_code = response[1] if isinstance(response, tuple) else 200
-            
-            # Track request metrics
-            REQUEST_COUNT.labels(
-                method=method,
-                endpoint=endpoint,
-                status=status_code
-            ).inc()
-            
-            # Track latency
-            REQUEST_LATENCY.labels(
-                method=method,
-                endpoint=endpoint
-            ).observe(time.time() - start_time)
-            
-            return response
-        except Exception as e:
-            REQUEST_COUNT.labels(
-                method=method,
-                endpoint=endpoint,
-                status=500
-            ).inc()
-            raise e
-    return wrapper
 
 @auth_bp.route('/status', methods=['GET'])
 @track_auth_metrics
@@ -102,7 +69,7 @@ def signup():
         }), 500
 
 @auth_bp.route('/login', methods=['POST'])
-@track_auth_metrics
+@track_user_action('login')
 def login():
     try:
         if not request.is_json:

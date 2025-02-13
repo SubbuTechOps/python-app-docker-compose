@@ -1,9 +1,15 @@
 from flask import Blueprint, request, jsonify, session
 from database.db_config import get_db_connection, close_db_connection
+from monitoring.prometheus_metrics import (
+    CART_OPERATIONS,
+    track_auth_metrics,
+    record_request_metrics
+)
 
 cart_bp = Blueprint('cart', __name__)
 
 @cart_bp.route('/cart', methods=['GET'])
+@track_auth_metrics
 def get_cart():
     """
     Fetch all items in the cart for a given user.
@@ -49,6 +55,7 @@ def get_cart():
         close_db_connection(connection)
 
 @cart_bp.route('/cart', methods=['POST'])
+@track_user_action('cart_add')
 def add_to_cart():
     """
     Add a product to the cart for the logged-in user.
@@ -90,6 +97,7 @@ def add_to_cart():
             cursor.execute(insert_query, (user_id, product_id, quantity))
 
         connection.commit()
+        CART_OPERATIONS.labels(operation='add').inc()
         return jsonify({"message": "Product added to cart successfully"}), 201
     except Exception as e:
         return jsonify({"message": "Failed to add product to cart", "error": str(e)}), 500
@@ -97,6 +105,7 @@ def add_to_cart():
         close_db_connection(connection)
 
 @cart_bp.route('/cart', methods=['DELETE'])
+@track_user_action('cart_remove')
 def remove_from_cart():
     """
     Remove a product from the cart for the logged-in user.
@@ -127,6 +136,7 @@ def remove_from_cart():
             return jsonify({"message": "Product not found in cart"}), 404
 
         connection.commit()
+        CART_OPERATIONS.labels(operation='remove').inc()
         return jsonify({"message": "Product removed from cart successfully"}), 200
     except Exception as e:
         return jsonify({"message": "Failed to remove product from cart", "error": str(e)}), 500

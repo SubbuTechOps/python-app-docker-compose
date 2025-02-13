@@ -7,7 +7,10 @@ from flask_cors import CORS
 from flask_session import Session
 from dotenv import load_dotenv
 from functools import wraps
-from monitoring.middleware import MonitoringMiddleware, REGISTRY
+from prometheus_client import make_wsgi_app
+from werkzeug.middleware.dispatcher import DispatcherMiddleware
+from monitoring.prometheus_metrics import REGISTRY
+from monitoring.middleware import MonitoringMiddleware
 from monitoring.health_routes import health_bp
 
 # Configure logging
@@ -33,17 +36,18 @@ def login_required(f):
 
 def create_app():
     app = Flask(__name__, static_folder=FRONTEND_PATH, static_url_path="")
+    app.healthy = False  # Initialize health status
 
-    # Use the WSGI middleware approach for metrics instead of a separate server
-    from prometheus_client import make_wsgi_app
-    from werkzeug.middleware.dispatcher import DispatcherMiddleware
-    
-    # Apply middleware stack with global registry
-    app.wsgi_app = MonitoringMiddleware(
-        DispatcherMiddleware(app.wsgi_app, {
-            '/api/metrics': make_wsgi_app(REGISTRY)
-        })
-    )
+    try:
+        # Apply middleware stack with global registry
+        app.wsgi_app = MonitoringMiddleware(
+            DispatcherMiddleware(app.wsgi_app, {
+                '/api/metrics': make_wsgi_app(REGISTRY)
+            })
+        )
+        logger.info("✅ Monitoring middleware configured successfully")
+    except Exception as e:
+        logger.error(f"🚨 Error configuring monitoring middleware: {e}")
 
     # Session Configuration
     app.secret_key = os.getenv('SECRET_KEY', 'default_secret_key')
@@ -73,7 +77,9 @@ def create_app():
 
     @app.before_request
     def log_request():
-        logger.info(f"🔍 Incoming request: {request.method} {request.path}")
+        # Skip logging for metrics endpoint to avoid noise
+        if request.path != '/api/metrics':
+            logger.info(f"🔍 Incoming request: {request.method} {request.path}")
 
     # Initialize Database
     try:
@@ -82,21 +88,35 @@ def create_app():
         logger.info("🔄 Initializing Database Connection Pool...")
         if not initialize_pool():
             logger.error("❌ Database connection pool initialization failed!")
+            app.healthy = False
         else:
             logger.info("✅ Database Connection Pool Initialized Successfully!")
+            app.healthy = True
 
         if check_db_connection():
             logger.info("✅ Database connection successful")
             global db_initialized
             db_initialized = True
+            app.healthy = True
         else:
             logger.warning("⚠️ Database connection failed!")
+            app.healthy = False
 
     except Exception as e:
         logger.error(f"🚨 Failed to check database connection: {str(e)}")
+        app.healthy = False
+
+    @app.after_request
+    def after_request(response):
+    """Record metrics after each request"""
+    return record_request_metrics(response)
 
     # Register Blueprints
     try:
+        # Register health blueprint first
+        app.register_blueprint(health_bp, url_prefix="/api/health")
+
+        # Then register other blueprints
         from routes.auth_routes import auth_bp
         from routes.product_routes import product_bp
         from routes.cart_routes import cart_bp
@@ -106,11 +126,11 @@ def create_app():
         app.register_blueprint(product_bp, url_prefix="/api")
         app.register_blueprint(cart_bp, url_prefix="/api")
         app.register_blueprint(order_bp, url_prefix="/api")
-        app.register_blueprint(health_bp, url_prefix="/api/health")
         logger.info("✅ All blueprints registered successfully!")
 
     except Exception as e:
         logger.error(f"🚨 Error registering blueprints: {e}")
+        app.healthy = False
 
     @app.route("/")
     def serve_index():
